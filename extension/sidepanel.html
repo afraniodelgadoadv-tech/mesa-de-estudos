@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mesa de Estudos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800&family=Manrope:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="styles.css">
+
+</head>
+<body data-mode="panel">
+<div class="app">
+  <aside class="side">
+    <div class="logo">
+      <span class="logo-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5V6a2 2 0 0 1 2-2h12v15H6a2 2 0 0 0-2 2"/><path d="M8 4v8l2.5-1.5L13 12V4"/></svg></span>
+      <b>Mesa de<br>Estudos</b>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Seções">
+      <button role="tab" id="tab-timer" aria-selected="true" data-tab="timer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9.5 2h5M12 2v3"/></svg><span>Cronômetro</span></button>
+      <button role="tab" id="tab-tasks" aria-selected="false" data-tab="tasks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M8 10.5l2.5 2.5L16 8M8 17h8"/></svg><span>Tarefas</span></button>
+      <button role="tab" id="tab-stats" aria-selected="false" data-tab="stats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Estatísticas</span></button>
+      <button role="tab" id="tab-exams" aria-selected="false" data-tab="exams"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4M12 14v3"/></svg><span>Provas</span></button>
+      <button role="tab" id="tab-notes" aria-selected="false" data-tab="notes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v11l-5 5H4z"/><path d="M15 20v-5h5M8 9h8M8 13h5"/></svg><span>Notas</span></button>
+    </nav>
+    <a class="open-site" target="_blank" rel="noopener" title="Abrir o site completo" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span>Abrir site</span></a>
+    <div class="sync" id="sync"><span class="dot"></span><span class="sync-txt"><span id="syncText">Conectando…</span><small id="syncAcc"></small></span></div>
+  </aside>
+
+  <main class="main">
+  <header class="hello">
+    <span class="date" id="helloDate"></span>
+    <h1 id="helloTitle">Olá, Afrânio</h1>
+    <span class="sub" id="helloSub"></span>
+  </header>
+
+  <!-- CRONÔMETRO -->
+  <section id="view-timer" class="grid g2">
+    <div class="panel clock">
+      <div class="pick">
+        <span class="label">O que você vai estudar agora?</span>
+        <div class="cats" id="catPicker"></div>
+        <div class="row" id="newCatRow" hidden style="justify-content:center">
+          <input type="text" id="newCatName" placeholder="Ex.: Lei seca, Revisão, Discursiva" maxlength="40">
+          <button class="btn primary sm" id="newCatSave">Adicionar</button>
+          <button class="btn ghost sm" id="newCatCancel">Cancelar</button>
+        </div>
+      </div>
+      <div class="ring">
+        <svg viewBox="0 0 240 240" aria-hidden="true"><circle cx="120" cy="120" r="106" fill="none" stroke="var(--sunk)" stroke-width="14"/><circle class="prog" id="ringProg" cx="120" cy="120" r="106" fill="none" stroke="var(--accent)" stroke-width="14" stroke-linecap="round" stroke-dasharray="666" stroke-dashoffset="666"/></svg>
+        <div class="center"><div class="time" id="time">00:00:00</div><div class="goal" id="ringGoal"></div></div>
+      </div>
+      <div class="status" id="status"></div>
+      <div class="controls" id="controls"></div>
+      <div class="goal-edit" id="goalEdit"></div>
+      <div class="finish" id="finish" hidden>
+        <div class="row between"><h3>Boa! Quer registrar os números?</h3><span class="num" id="finishDur"></span></div>
+        <div class="row">
+          <label class="field"><span id="qtyLabel">Quantidade (opcional)</span><input type="number" id="fQty" min="0" inputmode="numeric"></label>
+          <label class="field"><span>Acertos (opcional)</span><input type="number" id="fOk" min="0" inputmode="numeric"></label>
+        </div>
+        <label class="check-line" id="fTaskWrap" hidden><input type="checkbox" id="fTaskDone" checked> Marcar a tarefa como concluída</label>
+        <label class="field"><span>Anotação (opcional)</span><input type="text" id="fNote" maxlength="140" placeholder="Ex.: Direito Civil — prescrição, banca FGV"></label>
+        <div class="row">
+          <button class="btn primary" id="fSave">Salvar sessão</button>
+          <button class="btn" id="fBack">Voltar ao cronômetro</button>
+          <span class="confirm" id="fDiscardWrap"><button class="btn ghost danger" id="fDiscard">Descartar</button></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="stack side-col">
+      <div class="panel stack">
+        <div class="row between"><h2>Tarefas de hoje</h2><button class="btn ghost sm" type="button" id="seeTasks">Ver todas</button></div>
+        <div id="todayTasks" class="stack" style="gap:8px"></div>
+        <form id="quickTask" class="row qt" autocomplete="off"><input type="text" id="qtText" maxlength="120" placeholder="Adicionar tarefa para hoje" aria-label="Nova tarefa para hoje"><button class="btn sm" type="submit">Adicionar</button></form>
+      </div>
+      <div class="panel stack">
+        <h2>Seu progresso</h2>
+        <div class="kpis">
+          <div class="kpi"><span class="ki"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><b id="kToday">0min</b><span>hoje</span></div>
+          <div class="kpi" style="--kc:var(--cat5)"><span class="ki"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></span><b id="kWeek">0min</b><span>nesta semana</span></div>
+          <div class="kpi" style="--kc:var(--cat1)"><span class="ki"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2 1-3.5 2-4.5.3 1.5 1 2.5 2 3 0-3 .5-6 1-8.5z"/></svg></span><b id="kStreak">0 dias</b><span>seguidos</span></div>
+        </div>
+        <div class="bars" id="todayBars"></div>
+      </div>
+      <div class="panel stack">
+        <h2>Próxima prova</h2>
+        <div id="nextExam" class="stack"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TAREFAS -->
+  <section id="view-tasks" class="grid g2" hidden>
+    <div class="stack">
+      <form class="panel stack" id="taskForm" autocomplete="off">
+        <h2>Nova tarefa de estudo</h2>
+        <label class="field"><span>O que estudar</span><input type="text" id="tText" maxlength="120" placeholder="Ex.: Revisar prescrição e decadência (CC, arts. 189 a 211)" required></label>
+        <div class="row">
+          <label class="field" style="flex:1 1 150px"><span>Atividade (opcional)</span><select id="tCat"></select></label>
+          <label class="field" style="flex:1 1 150px"><span>Para quando (opcional)</span><input type="date" id="tDue"></label>
+        </div>
+        <div class="row"><button class="btn sm" type="button" data-due="0">Hoje</button><button class="btn sm" type="button" data-due="1">Amanhã</button><button class="btn primary" type="submit" style="margin-left:auto">Adicionar tarefa</button></div>
+      </form>
+      <div class="panel stack"><h2>A fazer</h2><div id="taskList" class="stack"></div></div>
+    </div>
+    <div class="stack">
+      <div class="panel stack"><h2>Concluídas</h2><div id="taskDone" class="stack"></div></div>
+      <div class="panel stack"><h3>Dica</h3><p class="note-sm" style="margin:0">Toque no ▶ de uma tarefa para estudá-la com o cronômetro. Ao encerrar, você pode marcá-la como concluída.</p></div>
+    </div>
+  </section>
+
+  <!-- ESTATÍSTICAS -->
+  <section id="view-stats" class="stack" hidden>
+    <div class="panel stack">
+      <div class="row between">
+        <h2>Tempo por atividade</h2>
+        <div class="seg" id="period">
+          <button data-p="1" aria-pressed="false">Hoje</button>
+          <button data-p="7" aria-pressed="true">7 dias</button>
+          <button data-p="30" aria-pressed="false">30 dias</button>
+          <button data-p="0" aria-pressed="false">Tudo</button>
+        </div>
+      </div>
+      <div class="kpis">
+        <div class="kpi"><span class="label">Tempo total</span><b id="sTotal">0min</b></div>
+        <div class="kpi"><span class="label">Média por dia</span><b id="sAvg">0min</b></div>
+        <div class="kpi"><span class="label">Sessões</span><b id="sCount">0</b></div>
+      </div>
+      <div class="bars" id="statBars"></div>
+    </div>
+
+    <div class="panel stack">
+      <div class="row between"><h2>Últimos 14 dias</h2><div class="legend" id="chartLegend"></div></div>
+      <div class="chart" id="chart"></div>
+    </div>
+
+    <div class="panel stack">
+      <div class="row between"><h2>Seus horários de estudo</h2><span class="note-sm" id="hoursPeriod"></span></div>
+      <div class="hours" id="hoursChart"></div>
+      <p class="note-sm" id="hoursNote" style="margin:0"></p>
+    </div>
+
+    <div class="grid g2">
+      <div class="panel stack">
+        <div class="row between"><h2>Sessões</h2><span class="note-sm" id="logCount"></span></div>
+        <div class="tablebox"><table class="log"><thead><tr><th>Data</th><th>Atividade</th><th>Tempo</th><th>Itens</th><th></th></tr></thead><tbody id="logBody"></tbody></table></div>
+        <button class="btn sm" id="logMore" hidden>Mostrar mais</button>
+      </div>
+      <div class="stack">
+        <div class="panel stack">
+          <h3>Lançar sessão manualmente</h3>
+          <p class="note-sm" style="margin:0">Para quando você estudou sem ligar o cronômetro.</p>
+          <label class="field"><span>Atividade</span><select id="mCat"></select></label>
+          <div class="row">
+            <label class="field" style="flex:1 1 140px"><span>Data</span><input type="date" id="mDate"></label>
+            <label class="field" style="flex:1 1 90px"><span>Minutos</span><input type="number" id="mMin" min="1" inputmode="numeric"></label>
+          </div>
+          <div class="row">
+            <label class="field" style="flex:1 1 90px"><span>Quantidade</span><input type="number" id="mQty" min="0" inputmode="numeric"></label>
+            <label class="field" style="flex:1 1 90px"><span>Acertos</span><input type="number" id="mOk" min="0" inputmode="numeric"></label>
+          </div>
+          <div class="row"><button class="btn primary" id="mSave">Lançar</button><span class="note-sm" id="mMsg"></span></div>
+        </div>
+        <div class="panel stack">
+          <h3>Atividades</h3>
+          <div id="catAdmin" class="stack"></div>
+          <p class="note-sm" style="margin:0">Remover uma atividade não apaga as sessões já registradas.</p>
+        </div>
+        <div class="panel stack">
+          <h3>Seus dados</h3>
+          <p class="note-sm" style="margin:0">Conta: <b id="accEmail"></b> · <button class="btn ghost sm" type="button" id="logoutBtn" style="padding:2px 6px">Sair</button></p>
+          <div class="row"><button class="btn sm" type="button" id="expBtn">Baixar backup</button><label class="btn sm" for="impFile">Importar arquivo</label><input type="file" id="impFile" accept="application/json,.json" hidden></div>
+          <label class="field"><span>Ou cole aqui os dados copiados do site antigo</span><textarea id="impText" rows="3" placeholder='{"app":"mesa-de-estudos", …}'></textarea></label>
+          <div class="row"><button class="btn sm" type="button" id="impBtn">Importar</button><span class="note-sm" id="impMsg"></span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PROVAS -->
+  <section id="view-exams" class="grid g2" hidden>
+    <div class="stack">
+      <div class="row between"><h2>Seus concursos</h2><button class="btn primary" id="eAdd">+ Novo concurso</button></div>
+      <div class="panel stack" id="examForm" hidden></div>
+      <div class="stack" id="examList"></div>
+    </div>
+    <div class="stack">
+      <div class="panel stack">
+        <div class="row between">
+          <h2 id="calTitle"></h2>
+          <div class="row" style="gap:6px"><button class="btn sm" id="calPrev" aria-label="Mês anterior">‹</button><button class="btn sm" id="calToday">Hoje</button><button class="btn sm" id="calNext" aria-label="Próximo mês">›</button></div>
+        </div>
+        <div class="cal" id="cal"></div>
+        <div class="legend"><span>Estudo no dia:</span><i style="background:var(--heat0)"></i>0<i style="background:var(--heat1)"></i>&lt;1h<i style="background:var(--heat2)"></i>1–2h<i style="background:var(--heat3)"></i>2–4h<i style="background:var(--heat4)"></i>4h+</div>
+        <div class="legend"><i style="background:var(--warn)"></i>Prova <i style="background:var(--cat5);margin-left:6px"></i>Início insc. <i style="background:var(--cat4);margin-left:6px"></i>Fim insc. <i style="background:var(--cat2);margin-left:6px"></i>Pagamento <i style="background:var(--cat0);margin-left:6px"></i>Outras</div>
+      </div>
+      <div class="panel stack">
+        <h2>Próximos prazos</h2>
+        <div id="deadlines"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- NOTAS -->
+  <section id="view-notes" hidden>
+    <div class="notes-full" id="notesFull"></div>
+  </section>
+  <div class="popfoot" id="popFoot">
+    <button class="btn" type="button" id="popPanel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M15 4v16"/></svg>Painel lateral</button>
+    <a class="btn open-site" target="_blank" rel="noopener" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>Abrir site</a>
+  </div>
+  </main>
+</div>
+
+<div class="gate" id="gate">
+  <div class="gate-card">
+    <span class="logo-mark big"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5V6a2 2 0 0 1 2-2h12v15H6a2 2 0 0 0-2 2"/><path d="M8 4v8l2.5-1.5L13 12V4"/></svg></span>
+    <h1>Mesa de Estudos</h1>
+    <p>Seu cronômetro, tarefas, notas e provas, iguais no computador, no celular e na extensão.</p>
+    <button class="btn primary big" type="button" id="loginBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M21.6 12.2c0-.7-.1-1.4-.2-2H12v3.8h5.4a4.6 4.6 0 0 1-2 3v2.5h3.2c1.9-1.7 3-4.3 3-7.3z"/><path fill="#fff" opacity=".85" d="M12 22c2.7 0 5-.9 6.6-2.4l-3.2-2.5c-.9.6-2 1-3.4 1-2.6 0-4.8-1.8-5.6-4.1H3.1v2.6A10 10 0 0 0 12 22z"/><path fill="#fff" opacity=".7" d="M6.4 14c-.2-.6-.3-1.3-.3-2s.1-1.4.3-2V7.4H3.1a10 10 0 0 0 0 9.2z"/><path fill="#fff" opacity=".55" d="M12 6c1.5 0 2.8.5 3.8 1.5l2.9-2.9A10 10 0 0 0 3.1 7.4L6.4 10C7.2 7.8 9.4 6 12 6z"/></svg>Entrar com Google</button>
+    <p class="gate-msg" id="gateMsg" role="status"></p>
+  </div>
+</div>
+
+<button class="fab" id="stickyFab" aria-label="Abrir bloco de notas" aria-expanded="false" title="Bloco de notas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v11l-5 5H4z"/><path d="M15 20v-5h5"/><path d="M8 9h8M8 13h5"/></svg></button>
+<div class="sticky" id="sticky" hidden></div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

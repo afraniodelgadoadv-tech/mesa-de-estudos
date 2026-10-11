@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "Mesa de Estudos",
+  "short_name": "Estudos",
+  "version": "1.0.0",
+  "description": "Cronômetro no ícone e painel lateral com tarefas, notas, estatísticas e provas da sua Mesa de Estudos.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2N+bcFn+coqpAs6MaHbA5NSjH7vvlcXrYikaeNpF0fHlj8ebrGK9o2P4f7CHi0YU8QVMJS5Brsj2V4MleB5p5VQLMIJhIZsWVbrCxvkh3E8bafOskBQfgrA97k6i1c3i+4PgIK53pdBIXhu85r5ZTrYgqw8LoTIjzKKc8OXMrH5zJpyKKcrP5uC/jtcRpipj5e4Z8M4/aKqLFLCw3/hkHmVCPvZ1X4NZ6IcLUKmoXM++HQUmk/IbrsXnrFfzF0psL+1h85puAHCdRWw4IkHtjfra/xSPxpagWry/qDf6ilv10u0s0HwAhv21hVefWfgS/d77D1VWa66RmBKtiUAJYQIDAQAB",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Mesa de Estudos",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    }
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": [
+    "sidePanel",
+    "alarms",
+    "storage"
+  ],
+  "externally_connectable": {
+    "matches": [
+      "https://usuario.github.io/*"
+    ]
+  },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Alt+Shift+E"
+      },
+      "description": "Abrir o cronômetro"
+    }
+  }
+}

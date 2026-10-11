@@ -1,0 +1,20 @@
+{
+  "name": "mesa-de-estudos",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "esbuild": "^0.24.2",
+    "firebase": "^11.10.0"
+  },
+  "devDependencies": {
+    "playwright": "^1.64.0"
+  },
+  "type": "module",
+  "private": true
+}

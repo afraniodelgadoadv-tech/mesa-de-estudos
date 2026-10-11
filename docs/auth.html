@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Entrar na extensão · Mesa de Estudos</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800&family=Manrope:wght@400;500;600;700;800&display=swap">
+<style>
+:root{--bg:#EFF4F1;--card:#fff;--ink:#1D2B27;--ink2:#4D5D57;--accent:#12806D;--ok:#2C8A4B;--bad:#C4443A;--line:#E0E8E3}
+@media (prefers-color-scheme: dark){:root{--bg:#0F1614;--card:#18211F;--ink:#E7EFEB;--ink2:#AEBDB7;--accent:#4CC6AC;--ok:#7CD496;--bad:#F08A7E;--line:#25302D;color-scheme:dark}}
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--ink);font-family:Manrope,system-ui,sans-serif;padding:16px;box-sizing:border-box}
+.card{max-width:420px;width:100%;background:var(--card);border:1px solid var(--line);border-radius:24px;padding:32px 28px;display:flex;flex-direction:column;gap:14px;align-items:center;text-align:center}
+h1{font-family:Nunito,system-ui,sans-serif;margin:0;font-size:1.5rem}
+p{margin:0;color:var(--ink2)}
+button,a.b{font:inherit;font-weight:700;border:0;border-radius:999px;padding:12px 24px;background:var(--accent);color:#fff;cursor:pointer;text-decoration:none}
+button:disabled{opacity:.5}
+.msg{min-height:1.4em}.msg.ok{color:var(--ok);font-weight:700}.msg.err{color:var(--bad)}
+</style></head>
+<body><main class="card">
+<h1>Conectar a extensão</h1>
+<p>Entre com a mesma conta Google do site. A extensão passa a mostrar seu cronômetro, tarefas, notas e provas.</p>
+<button id="go" type="button">Entrar com Google</button>
+<a class="b" id="home" href="./" hidden>Abrir a Mesa de Estudos</a>
+<p class="msg" id="msg" role="status"></p>
+</main><script type="module" src="auth.js"></script></body></html>
