@@ -95,10 +95,10 @@ chrome.alarms.onAlarm.addListener(async a => {
 function setup(){
   chrome.alarms.create("tick", { periodInMinutes: 1 });
   chrome.contextMenus.removeAll(() => {
-    chrome.contextMenus.create({ id: "open-panel", title: "Abrir painel lateral (Alt+Shift+S)", contexts: ["action"] });
     chrome.contextMenus.create({ id: "toggle-pill", title: "Mostrar/esconder pílula (Alt+Shift+P)", contexts: ["action"] });
   });
-  if (chrome.sidePanel && chrome.sidePanel.setPanelBehavior) chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false }).catch(() => {});
+  // um clique no ícone abre direto o painel lateral
+  if (chrome.sidePanel && chrome.sidePanel.setPanelBehavior) chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
   refresh();
 }
 chrome.runtime.onInstalled.addListener(setup);
@@ -215,3 +215,6 @@ chrome.notifications.onClicked.addListener(id => {
     else chrome.tabs.create({ url: SITE_URL });
   });
 });
+
+// garante o clique no ícone abrindo o painel também quando o service worker reinicia
+if (chrome.sidePanel && chrome.sidePanel.setPanelBehavior) chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});

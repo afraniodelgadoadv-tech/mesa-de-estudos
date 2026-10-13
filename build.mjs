@@ -81,7 +81,6 @@ writeFileSync("docs/.nojekyll", "");
 // ---------- extensão ----------
 writeFileSync("extension/styles.css", styles);
 writeFileSync("extension/sidepanel.html", page({ title: "Mesa de Estudos", mode: "panel", cssHref: "styles.css", script: "app.js" }));
-writeFileSync("extension/popup.html", page({ title: "Mesa de Estudos", mode: "popup", cssHref: "styles.css", script: "app.js" }));
 writeFileSync("extension/float.html", page({ title: "Cronômetro · Mesa de Estudos", mode: "float", cssHref: "styles.css", script: "app.js" }));
 const { SITE_URL } = await import("./src/config.js");
 const site = new URL(SITE_URL);
@@ -93,13 +92,13 @@ writeFileSync("extension/manifest.json", JSON.stringify({
   description: "Cronômetro no ícone e painel lateral com tarefas, notas, estatísticas e provas da sua Mesa de Estudos.",
   key: EXT_KEY,
   icons: { 16: "icons/icon-16.png", 32: "icons/icon-32.png", 48: "icons/icon-48.png", 128: "icons/icon-128.png" },
-  action: { default_popup: "popup.html", default_title: "Mesa de Estudos", default_icon: { 16: "icons/icon-16.png", 32: "icons/icon-32.png" } },
+  action: { default_title: "Mesa de Estudos", default_icon: { 16: "icons/icon-16.png", 32: "icons/icon-32.png" } },
   side_panel: { default_path: "sidepanel.html" },
   background: { service_worker: "background.js", type: "module" },
   permissions: ["sidePanel", "alarms", "storage", "notifications", "contextMenus"],
   externally_connectable: { matches: [site.origin + "/*"] },
   content_scripts: [{ matches: ["<all_urls>"], js: ["content.js"], run_at: "document_idle" }],
-  commands: { _execute_action: { suggested_key: { default: "Alt+Shift+E" }, description: "Abrir o cronômetro" }, "toggle-pill": { suggested_key: { default: "Alt+Shift+P" }, description: "Mostrar ou esconder a pílula" }, "open-panel": { suggested_key: { default: "Alt+Shift+S" }, description: "Abrir o painel lateral" } },
+  commands: { _execute_action: { suggested_key: { default: "Alt+Shift+E" }, description: "Abrir o painel lateral" }, "toggle-pill": { suggested_key: { default: "Alt+Shift+P" }, description: "Mostrar ou esconder a pílula" }, "open-panel": { suggested_key: { default: "Alt+Shift+S" }, description: "Abrir o painel lateral" } },
 }, null, 2));
 
 // ícones
