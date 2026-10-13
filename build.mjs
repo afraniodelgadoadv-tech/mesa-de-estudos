@@ -14,6 +14,7 @@ for (const d of ["docs", "extension"]) { rmSync(d, { recursive: true, force: tru
 const common = { bundle: true, format: "esm", minify: true, target: ["chrome110", "edge110", "safari15"], legalComments: "none", logLevel: "warning" };
 await build({ ...common, entryPoints: { app: "src/site-entry.js", auth: "src/auth-entry.js" }, outdir: "docs" });
 await build({ ...common, entryPoints: { app: "src/ext-entry.js", background: "src/background.js" }, outdir: "extension" });
+await build({ ...common, format: "iife", entryPoints: { content: "src/content.js" }, outdir: "extension" });
 
 const page = ({ title, mode, cssHref, extraHead = "", script }) => `<!doctype html>
 <html lang="pt-BR">
@@ -97,6 +98,7 @@ writeFileSync("extension/manifest.json", JSON.stringify({
   background: { service_worker: "background.js", type: "module" },
   permissions: ["sidePanel", "alarms", "storage", "notifications"],
   externally_connectable: { matches: [site.origin + "/*"] },
+  content_scripts: [{ matches: ["<all_urls>"], js: ["content.js"], run_at: "document_idle" }],
   commands: { _execute_action: { suggested_key: { default: "Alt+Shift+E" }, description: "Abrir o cronômetro" } },
 }, null, 2));
 

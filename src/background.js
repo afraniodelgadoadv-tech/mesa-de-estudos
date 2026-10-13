@@ -1,7 +1,7 @@
 // Service worker da extensão: tempo no ícone, login vindo do site e consulta periódica ao Firestore.
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithCredential, signOut } from "firebase/auth/web-extension";
-import { getFirestore, doc, getDoc } from "firebase/firestore/lite";
+import { getFirestore, doc, getDoc, updateDoc } from "firebase/firestore/lite";
 import { firebaseConfig, SITE_URL, ALLOWED } from "./config.js";
 
 const app = initializeApp(firebaseConfig);
@@ -100,10 +100,42 @@ function setup(){
 chrome.runtime.onInstalled.addListener(setup);
 chrome.runtime.onStartup.addListener(setup);
 
+/* ---------- ações da pílula (mini cronômetro dentro das páginas) ---------- */
+const FLOAT_URL = "float.html";
+async function openFinishWindow(){
+  const { floatWin } = await chrome.storage.session.get("floatWin");
+  if (floatWin){ try { await chrome.windows.update(floatWin, { focused: true, state: "normal" }); return; } catch (e) {} }
+  const w = await chrome.windows.create({ url: FLOAT_URL, type: "popup", width: 320, height: 430, focused: true });
+  await chrome.storage.session.set({ floatWin: w.id });
+}
+async function pillAction(action){
+  await auth.authStateReady();
+  const u = auth.currentUser; if (!u) return { ok: false, message: "Entre na extensão primeiro." };
+  const ref = doc(db, "users", u.uid);
+  const snap = await getDoc(ref);
+  const r = snap.exists() ? snap.data().running : null;
+  if (!r) { await setRunning(null); return { ok: false }; }
+  const now = Date.now();
+  const acc = () => (r.acc || 0) + (r.start ? (now - r.start) / 1000 : 0);
+  if (action === "pause" && r.start){ r.acc = acc(); r.start = null; }
+  else if (action === "play"){
+    delete r.pendingFinish;
+    if (r.mode === "pomodoro" && r.phase !== "focus"){ r.phase = "focus"; r.blockAcc = r.acc || 0; r.start = now; }
+    else if ((r.mode === "countdown" || r.mode === "exam") && r.done){ r.target += 300; r.done = false; r.start = now; }
+    else if (!r.start) r.start = now;
+  }
+  else if (action === "stop"){ if (r.start){ r.acc = acc(); r.start = null; } r.pendingFinish = true; }
+  await updateDoc(ref, { running: r });
+  await setRunning(r);
+  if (action === "stop") await openFinishWindow();
+  return { ok: true };
+}
+
 /* ---------- mensagens das páginas da extensão ---------- */
 chrome.runtime.onMessage.addListener((msg, sender, send) => {
   if (!msg) return false;
   if (msg.type === "running"){ setRunning(msg.running); return false; }
+  if (msg.type === "pill"){ pillAction(msg.action).then(send, e => send({ ok: false, message: e.message })); return true; }
   if (msg.type === "logout"){
     signOut(auth).then(() => setRunning(null)).then(() => send({ ok: true }));
     return true;

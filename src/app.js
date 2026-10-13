@@ -53,7 +53,10 @@ const store = {
         config = {categories: (d.categories&&d.categories.length)? d.categories : DEFAULT_CATS.slice(), exams: d.exams||[], running: d.running||null, dailyGoal: d.dailyGoal||240, timerPrefs: d.timerPrefs||null};
       } else if (first && !snap.metadata.fromCache){ this.saveConfig(); }
       first = false;
-      restoreRunning(); renderAll(); markReady();
+      restoreRunning();
+      if (env.mode === "float" && config.running && config.running.pendingFinish && !finishing) stopTimer();
+      if (finishing && finishing.auto && !config.running) finishing = null;
+      renderAll(); markReady();
       if (env.onRunning) env.onRunning(config.running, config.dailyGoal);
     }, err => setSync("error", err)));
     this.unsubs.push(onSnapshot(col("sessions"), qs => {
@@ -161,14 +164,14 @@ function startTimer(task){
   store.saveConfig(); renderTimer();
 }
 function pauseTimer(){ const r = config.running; if (!r||!r.start) return; r.acc = (r.acc||0) + (Date.now()-r.start)/1000; r.start = null; store.saveConfig(); renderTimer(); }
-function resumeTimer(){ const r = config.running; if (!r||r.start) return; if (r.mode==="pomodoro" && r.phase!=="focus") return; r.start = Date.now(); store.saveConfig(); renderTimer(); }
-function skipBreak(){ const r = config.running; if (!r || r.mode!=="pomodoro") return; r.phase = "focus"; r.blockAcc = r.acc||0; r.start = Date.now(); store.saveConfig(); renderTimer(); }
-function extendTimer(min){ const r = config.running; if (!isTimed(r)) return; r.target += min*60; r.done = false; if (!r.start) r.start = Date.now(); store.saveConfig(); renderTimer(); }
+function resumeTimer(){ const r = config.running; if (!r||r.start) return; if (r.mode==="pomodoro" && r.phase!=="focus") return; r.start = Date.now(); delete r.pendingFinish; store.saveConfig(); renderTimer(); }
+function skipBreak(){ const r = config.running; if (!r || r.mode!=="pomodoro") return; r.phase = "focus"; r.blockAcc = r.acc||0; r.start = Date.now(); delete r.pendingFinish; store.saveConfig(); renderTimer(); }
+function extendTimer(min){ const r = config.running; if (!isTimed(r)) return; r.target += min*60; r.done = false; if (!r.start) r.start = Date.now(); delete r.pendingFinish; store.saveConfig(); renderTimer(); }
 function stopTimer(){
   const r = config.running; if (!r) return;
   const dur = elapsed();
   if (r.start){ r.acc = dur; r.start = null; store.saveConfig(); }
-  finishing = {cat: r.cat, first: r.first || (Date.now()-dur*1000), dur, task: r.task||null, mode: r.mode, questions: r.questions, cycles: r.cycles};
+  finishing = {cat: r.cat, first: r.first || (Date.now()-dur*1000), dur, task: r.task||null, mode: r.mode, questions: r.questions, cycles: r.cycles, auto: !!r.pendingFinish};
   $("fQty").value = ""; $("fOk").value = "";
   $("fNote").value = r.taskText || (r.mode==="exam" ? "Simulado: "+(r.questions||"")+" questões em "+fmtGoal(Math.round((r.target||0)/60)) : r.mode==="pomodoro" && r.cycles ? "Pomodoro "+r.cfg.label+": "+r.cycles+(r.cycles===1?" ciclo":" ciclos") : "");
   $("fTaskWrap").hidden = !(r.task && tasks.some(t=>t.id===r.task && !t.done)); $("fTaskDone").checked = true;
@@ -186,6 +189,7 @@ async function saveFinish(){
   finishing = null; config.running = null;
   await store.saveConfig(); await store.addSession(s);
   renderAll();
+  if (env.mode === "float" && f.auto) setTimeout(() => window.close(), 400);
 }
 function discardFinish(){ finishing = null; config.running = null; store.saveConfig(); renderAll(); }
 
