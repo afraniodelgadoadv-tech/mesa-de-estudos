@@ -1,5 +1,5 @@
 // Guarda o site para abrir mesmo sem internet (os dados já ficam no Firestore offline).
-const C = "mesa-1.0.0-1791914839666";
+const C = "mesa-1.0.1-1791916668505";
 const SHELL = ["./", "index.html", "app.js", "manifest.webmanifest", "icons/icon-192.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(C).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== C).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
