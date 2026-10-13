@@ -94,6 +94,10 @@ chrome.alarms.onAlarm.addListener(async a => {
 });
 function setup(){
   chrome.alarms.create("tick", { periodInMinutes: 1 });
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({ id: "open-panel", title: "Abrir painel lateral (Alt+Shift+S)", contexts: ["action"] });
+    chrome.contextMenus.create({ id: "toggle-pill", title: "Mostrar/esconder pílula (Alt+Shift+P)", contexts: ["action"] });
+  });
   if (chrome.sidePanel && chrome.sidePanel.setPanelBehavior) chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false }).catch(() => {});
   refresh();
 }
@@ -107,7 +111,15 @@ async function togglePill(flip){
   await chrome.storage.local.set({ pillOn: !on });
   return !on;
 }
-chrome.commands.onCommand.addListener(cmd => { if (cmd === "toggle-pill") togglePill(true); });
+chrome.commands.onCommand.addListener((cmd, tab) => {
+  if (cmd === "toggle-pill") togglePill(true);
+  if (cmd === "open-panel" && chrome.sidePanel){ const winId = tab && tab.windowId; if (winId != null) chrome.sidePanel.open({ windowId: winId }).catch(() => {}); }
+});
+// botão direito no ícone: atalhos rápidos
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId === "open-panel" && chrome.sidePanel && tab) chrome.sidePanel.open({ windowId: tab.windowId }).catch(() => {});
+  if (info.menuItemId === "toggle-pill") togglePill(true);
+});
 const POMO = { "25-5": [25,5,15,4,"25/5"], "50-10": [50,10,20,3,"50/10"], "52-17": [52,17,17,99,"52/17"], "90-20": [90,20,30,3,"90/20"] };
 function newRunning(cfgDoc){
   const p = cfgDoc.timerPrefs || {}, now = Date.now(), mode = p.mode || "free";

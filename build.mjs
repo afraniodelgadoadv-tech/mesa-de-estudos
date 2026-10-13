@@ -96,10 +96,10 @@ writeFileSync("extension/manifest.json", JSON.stringify({
   action: { default_popup: "popup.html", default_title: "Mesa de Estudos", default_icon: { 16: "icons/icon-16.png", 32: "icons/icon-32.png" } },
   side_panel: { default_path: "sidepanel.html" },
   background: { service_worker: "background.js", type: "module" },
-  permissions: ["sidePanel", "alarms", "storage", "notifications"],
+  permissions: ["sidePanel", "alarms", "storage", "notifications", "contextMenus"],
   externally_connectable: { matches: [site.origin + "/*"] },
   content_scripts: [{ matches: ["<all_urls>"], js: ["content.js"], run_at: "document_idle" }],
-  commands: { _execute_action: { suggested_key: { default: "Alt+Shift+E" }, description: "Abrir o cronômetro" }, "toggle-pill": { suggested_key: { default: "Alt+Shift+P" }, description: "Mostrar ou esconder a pílula" } },
+  commands: { _execute_action: { suggested_key: { default: "Alt+Shift+E" }, description: "Abrir o cronômetro" }, "toggle-pill": { suggested_key: { default: "Alt+Shift+P" }, description: "Mostrar ou esconder a pílula" }, "open-panel": { suggested_key: { default: "Alt+Shift+S" }, description: "Abrir o painel lateral" } },
 }, null, 2));
 
 // ícones
