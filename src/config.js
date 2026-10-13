@@ -1,14 +1,14 @@
 // Configuração do projeto. Preenchida com os dados do seu Firebase e do GitHub Pages.
 export const firebaseConfig = {
-  apiKey: "PREENCHER",
-  authDomain: "PREENCHER.firebaseapp.com",
-  projectId: "PREENCHER",
-  storageBucket: "PREENCHER.firebasestorage.app",
-  messagingSenderId: "PREENCHER",
-  appId: "PREENCHER"
+  apiKey: "AIzaSyBJZVNPWybKPx7nxvLcS6MB9pjCQXwAbL8",
+  authDomain: "mesa-de-estudos.firebaseapp.com",
+  projectId: "mesa-de-estudos",
+  storageBucket: "mesa-de-estudos.firebasestorage.app",
+  messagingSenderId: "306247132543",
+  appId: "1:306247132543:web:328fb5952abd9b0247e64a"
 };
 // Endereço do site publicado (termina com /)
-export const SITE_URL = "https://USUARIO.github.io/mesa-de-estudos/";
+export const SITE_URL = "https://afraniodelgadoadv-tech.github.io/mesa-de-estudos/";
 // Contas Google que podem entrar (as regras do Firestore também bloqueiam as demais)
 export const ALLOWED = ["afraniodelgado.adv@gmail.com"];
 // ID fixo da extensão (vem da chave pública no manifest.json)
