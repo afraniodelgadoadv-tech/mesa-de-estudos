@@ -579,3 +579,5 @@ body.pip .ring .center{gap:min(6px,2vw)}
 body.pip .time{font-size:min(56vh, 15.5vw, 44px);font-weight:800;line-height:1}
 body.pip .mini-toggle{width:min(62vh, 13vw, 30px);height:min(62vh, 13vw, 30px)}
 body.pip .mini-toggle svg{width:45%;height:45%}
+body.pip .time{font-size:min(48vh, 11vw, 30px)}
+body.pip .mini-toggle{width:min(50vh, 9vw, 24px);height:min(50vh, 9vw, 24px)}
