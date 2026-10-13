@@ -531,6 +531,36 @@ body.mode-float .ring svg{display:none}
 body.mode-float .ring .center{position:static;gap:2px}
 body.mode-float .time{font-size:2.2rem}
 body.mode-float .clock{gap:8px}
+
+/* Tipos de cronômetro */
+.modes{display:inline-flex;background:var(--sunk);border-radius:999px;padding:3px;gap:2px;flex-wrap:wrap;justify-content:center;max-width:100%}
+.modes button{border:0;background:transparent;padding:6px 14px;cursor:pointer;font-size:.86rem;color:var(--ink-2);border-radius:999px;font-weight:700}
+.modes button[aria-pressed="true"]{background:var(--raise);color:var(--accent-2);box-shadow:var(--shadow)}
+.mode-opts{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;align-items:center;max-width:460px}
+.mode-opts .opt{border:1px solid var(--line-2);background:var(--raise);border-radius:999px;padding:4px 11px;font-size:.82rem;font-weight:700;cursor:pointer;color:var(--ink-2)}
+.mode-opts .opt[aria-pressed="true"]{border-color:var(--cat5);color:var(--cat5);background:color-mix(in srgb, var(--cat5) 10%, var(--raise))}
+.mode-opts .opt-in{display:inline-flex;align-items:center;gap:5px;font-size:.82rem;color:var(--ink-2);font-weight:600}
+.mode-opts .opt-in input{width:4.6rem;padding:4px 7px}
+.mode-opts .opt-check{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;color:var(--ink-2);font-weight:600}
+.mode-opts .opt-check input{accent-color:var(--accent);width:16px;height:16px}
+.mode-opts .opt-line{flex-basis:100%;text-align:center}
+.mode-pill{font-size:.78rem;font-weight:800;color:var(--cat5);background:color-mix(in srgb, var(--cat5) 12%, var(--raise));padding:3px 12px;border-radius:999px}
+.clock[data-state="break"] .mode-pill{color:var(--warn);background:var(--warn-soft)}
+.clock[data-state="break"] .time{color:var(--warn)}
+.clock[data-state="done"] .time{color:var(--good)}
+body:is(.mode-panel,.mode-popup,.mode-float) .modes button{padding:4px 9px;font-size:.72rem}
+body:is(.mode-panel,.mode-popup,.mode-float) .mode-opts{gap:4px}
+body:is(.mode-panel,.mode-popup,.mode-float) .mode-opts .opt{padding:2px 8px;font-size:.72rem}
+body:is(.mode-panel,.mode-popup,.mode-float) :is(.mode-opts .opt-in,.mode-opts .opt-check,.mode-pill){font-size:.7rem}
+body:is(.mode-panel,.mode-popup) .clock .modes{margin-top:22px}
+body:is(.mode-panel,.mode-popup) .clock .pick{margin-top:0}
+body.pip .modes, body.pip .mode-opts{display:none}
+body.pip .clock[data-state="idle"] .modes{display:inline-flex}
+body.pip .mode-pill{font-size:.68rem;padding:1px 8px}
+body.mode-float .mode-opts .opt-line{display:none}
+.clock .modes{margin-top:30px}
+body:is(.mode-panel,.mode-popup) .clock .modes{margin-top:24px}
+body.mode-float .clock .modes{margin-top:0}
 </style>
 <meta name="theme-color" content="#12806D"><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icons/icon-32.png"><link rel="apple-touch-icon" href="icons/icon-180.png">
 </head>
@@ -563,6 +593,8 @@ body.mode-float .clock{gap:8px}
   <section id="view-timer" class="grid g2">
     <div class="panel clock" id="clockPanel">
       <button class="float-btn" type="button" id="floatBtn" title="Abrir cronômetro flutuante (fica por cima de tudo)" aria-label="Abrir cronômetro flutuante"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="19" height="15" rx="2.5"/><rect x="12" y="11" width="7" height="5.5" rx="1.2" fill="currentColor" stroke="none"/></svg><span>Flutuante</span></button>
+      <div class="modes" id="modeBar" role="group" aria-label="Tipo de cronômetro"></div>
+      <div class="mode-opts" id="modeOpts"></div>
       <div class="pick">
         <span class="label">O que você vai estudar agora?</span>
         <div class="cats" id="catPicker"></div>
@@ -572,6 +604,7 @@ body.mode-float .clock{gap:8px}
           <button class="btn ghost sm" id="newCatCancel">Cancelar</button>
         </div>
       </div>
+      <span class="mode-pill" id="modePill" hidden></span>
       <div class="ring">
         <svg viewBox="0 0 240 240" aria-hidden="true"><circle cx="120" cy="120" r="106" fill="none" stroke="var(--sunk)" stroke-width="14"/><circle class="prog" id="ringProg" cx="120" cy="120" r="106" fill="none" stroke="var(--accent)" stroke-width="14" stroke-linecap="round" stroke-dasharray="666" stroke-dashoffset="666"/></svg>
         <div class="center"><div class="time" id="time">00:00:00</div><div class="goal" id="ringGoal"></div></div>

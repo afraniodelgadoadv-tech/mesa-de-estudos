@@ -19,6 +19,9 @@ startApp({
   signIn: () => signInWithPopup(auth, provider),
   signOut: () => signOut(auth),
   onAuth: cb => onAuthStateChanged(auth, cb),
+  notify: (title, body) => {
+    try { if ("Notification" in window && Notification.permission === "granted") new Notification(title, { body, icon: "icons/icon-192.png", tag: "mesa-timer" }); } catch (e) {}
+  },
 });
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});

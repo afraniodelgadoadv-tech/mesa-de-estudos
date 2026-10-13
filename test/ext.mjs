@@ -19,5 +19,8 @@ const p2 = await ctx.newPage(); await p2.goto(`chrome-extension://${id}/popup.ht
 await p2.evaluate(() => chrome.runtime.sendMessage({type:"running", running:{cat:"questoes", start: Date.now()-65*60000, acc:0, taskText:"Revisar prescrição"}}));
 await p2.waitForTimeout(300);
 console.log("badge:", await sw.evaluate(() => chrome.action.getBadgeText({})), "| title:", await sw.evaluate(() => chrome.action.getTitle({})));
+await p2.evaluate(() => chrome.runtime.sendMessage({type:"running", running:{cat:"questoes", mode:"pomodoro", start: Date.now()-10*60000, acc:0, blockAcc:0, phase:"focus", cycles:0, cfg:{focus:25,short:5,long:15,every:4,auto:true,label:"25/5"}}}));
+await p2.waitForTimeout(400);
+console.log("pomo badge:", await sw.evaluate(() => chrome.action.getBadgeText({})), "| title:", await sw.evaluate(() => chrome.action.getTitle({})), "| alarm:", JSON.stringify(await sw.evaluate(async () => { const a = await chrome.alarms.get("phase"); return a ? Math.round((a.scheduledTime-Date.now())/60000) : null; })));
 console.log("ERRORS:", errs.length ? errs : "none");
 await ctx.close();

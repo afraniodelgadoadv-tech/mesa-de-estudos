@@ -524,3 +524,33 @@ body.mode-float .ring svg{display:none}
 body.mode-float .ring .center{position:static;gap:2px}
 body.mode-float .time{font-size:2.2rem}
 body.mode-float .clock{gap:8px}
+
+/* Tipos de cronômetro */
+.modes{display:inline-flex;background:var(--sunk);border-radius:999px;padding:3px;gap:2px;flex-wrap:wrap;justify-content:center;max-width:100%}
+.modes button{border:0;background:transparent;padding:6px 14px;cursor:pointer;font-size:.86rem;color:var(--ink-2);border-radius:999px;font-weight:700}
+.modes button[aria-pressed="true"]{background:var(--raise);color:var(--accent-2);box-shadow:var(--shadow)}
+.mode-opts{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;align-items:center;max-width:460px}
+.mode-opts .opt{border:1px solid var(--line-2);background:var(--raise);border-radius:999px;padding:4px 11px;font-size:.82rem;font-weight:700;cursor:pointer;color:var(--ink-2)}
+.mode-opts .opt[aria-pressed="true"]{border-color:var(--cat5);color:var(--cat5);background:color-mix(in srgb, var(--cat5) 10%, var(--raise))}
+.mode-opts .opt-in{display:inline-flex;align-items:center;gap:5px;font-size:.82rem;color:var(--ink-2);font-weight:600}
+.mode-opts .opt-in input{width:4.6rem;padding:4px 7px}
+.mode-opts .opt-check{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;color:var(--ink-2);font-weight:600}
+.mode-opts .opt-check input{accent-color:var(--accent);width:16px;height:16px}
+.mode-opts .opt-line{flex-basis:100%;text-align:center}
+.mode-pill{font-size:.78rem;font-weight:800;color:var(--cat5);background:color-mix(in srgb, var(--cat5) 12%, var(--raise));padding:3px 12px;border-radius:999px}
+.clock[data-state="break"] .mode-pill{color:var(--warn);background:var(--warn-soft)}
+.clock[data-state="break"] .time{color:var(--warn)}
+.clock[data-state="done"] .time{color:var(--good)}
+body:is(.mode-panel,.mode-popup,.mode-float) .modes button{padding:4px 9px;font-size:.72rem}
+body:is(.mode-panel,.mode-popup,.mode-float) .mode-opts{gap:4px}
+body:is(.mode-panel,.mode-popup,.mode-float) .mode-opts .opt{padding:2px 8px;font-size:.72rem}
+body:is(.mode-panel,.mode-popup,.mode-float) :is(.mode-opts .opt-in,.mode-opts .opt-check,.mode-pill){font-size:.7rem}
+body:is(.mode-panel,.mode-popup) .clock .modes{margin-top:22px}
+body:is(.mode-panel,.mode-popup) .clock .pick{margin-top:0}
+body.pip .modes, body.pip .mode-opts{display:none}
+body.pip .clock[data-state="idle"] .modes{display:inline-flex}
+body.pip .mode-pill{font-size:.68rem;padding:1px 8px}
+body.mode-float .mode-opts .opt-line{display:none}
+.clock .modes{margin-top:30px}
+body:is(.mode-panel,.mode-popup) .clock .modes{margin-top:24px}
+body.mode-float .clock .modes{margin-top:0}

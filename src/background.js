@@ -11,20 +11,42 @@ const SITE_ORIGIN = new URL(SITE_URL).origin;
 
 /* ---------- tempo no ícone ---------- */
 function elapsedSec(r){ return r ? (r.acc || 0) + (r.start ? (Date.now() - r.start) / 1000 : 0) : 0; }
+const fmtMin = m => m < 60 ? m + "m" : Math.floor(m / 60) + "h" + String(m % 60).padStart(2, "0");
+// próximo aviso: fim do regressivo/simulado, fim do foco ou da pausa do pomodoro
+function nextEvent(r){
+  if (!r) return null;
+  if ((r.mode === "countdown" || r.mode === "exam") && r.start && !r.done)
+    return { at: r.start + (r.target - (r.acc || 0)) * 1000, kind: "count", title: r.mode === "exam" ? "Fim do simulado" : "Tempo esgotado", body: r.mode === "exam" ? "Registre quantas questões você fez." : "Seu tempo de estudo terminou." };
+  if (r.mode === "pomodoro" && r.cfg){
+    if (r.phase === "focus" && r.start) return { at: r.start + (r.cfg.focus * 60 - ((r.acc || 0) - (r.blockAcc || 0))) * 1000, kind: "focus", title: "Hora da pausa", body: "Ciclo de foco concluído. Descanse um pouco." };
+    if (r.phase !== "focus" && r.breakStart) return { at: r.breakStart + r.breakLen * 1000, kind: "break", title: "Fim da pausa", body: r.cfg.auto ? "Um novo foco começou." : "Hora de voltar a estudar." };
+  }
+  return null;
+}
 function badgeText(r){
   if (!r) return "";
-  const m = Math.floor(elapsedSec(r) / 60);
-  if (m < 60) return m + "m";
-  return Math.floor(m / 60) + "h" + String(m % 60).padStart(2, "0");
+  const ev = nextEvent(r);
+  if (ev){ const left = Math.ceil((ev.at - Date.now()) / 60000); return left <= 0 ? "!" : fmtMin(left); }
+  if (r.done) return "!";
+  return fmtMin(Math.floor(elapsedSec(r) / 60));
+}
+function badgeColor(r){
+  const ev = nextEvent(r);
+  if (ev && ev.kind === "break") return "#C9770F";
+  if (ev) return "#2C82BF";
+  if (r.done) return "#2C8A4B";
+  return r.start ? "#12806D" : "#7F8E88";
 }
 async function paint(r){
   const text = badgeText(r);
   await chrome.action.setBadgeText({ text });
   if (r){
-    await chrome.action.setBadgeBackgroundColor({ color: r.start ? "#12806D" : "#7F8E88" });
+    await chrome.action.setBadgeBackgroundColor({ color: badgeColor(r) });
     if (chrome.action.setBadgeTextColor) await chrome.action.setBadgeTextColor({ color: "#FFFFFF" });
-    const what = r.taskText ? r.taskText : "estudando";
-    await chrome.action.setTitle({ title: "Mesa de Estudos · " + (r.start ? what + " há " : "pausado em ") + Math.floor(elapsedSec(r) / 60) + " min" });
+    const ev = nextEvent(r), what = r.taskText ? r.taskText : "estudando";
+    const left = ev ? Math.max(0, Math.ceil((ev.at - Date.now()) / 60000)) : 0;
+    const title = ev ? (ev.kind === "break" ? "pausa: faltam " + left + " min" : "faltam " + left + " min") : (r.start ? what + " há " + Math.floor(elapsedSec(r) / 60) + " min" : "pausado em " + Math.floor(elapsedSec(r) / 60) + " min");
+    await chrome.action.setTitle({ title: "Mesa de Estudos · " + title });
   } else {
     await chrome.action.setTitle({ title: "Mesa de Estudos" });
   }
@@ -32,6 +54,22 @@ async function paint(r){
 async function setRunning(r){
   await chrome.storage.local.set({ running: r || null });
   await paint(r || null);
+  await schedule(r || null);
+}
+// agenda a notificação do sistema para o fim da fase (funciona mesmo com o site e o painel fechados)
+async function schedule(r){
+  const ev = nextEvent(r);
+  await chrome.alarms.clear("phase");
+  if (ev && ev.at > Date.now() + 500){
+    await chrome.storage.local.set({ phaseEvent: ev });
+    chrome.alarms.create("phase", { when: ev.at });
+  }
+}
+async function notifyPhase(){
+  const { phaseEvent, lastNotified } = await chrome.storage.local.get(["phaseEvent", "lastNotified"]);
+  if (!phaseEvent || lastNotified === phaseEvent.at || Date.now() - phaseEvent.at > 120000) return;
+  await chrome.storage.local.set({ lastNotified: phaseEvent.at });
+  chrome.notifications.create("mesa-" + phaseEvent.at, { type: "basic", iconUrl: "icons/icon-128.png", title: phaseEvent.title, message: phaseEvent.body, priority: 2 });
 }
 async function cached(){ const { running } = await chrome.storage.local.get("running"); return running || null; }
 
@@ -49,6 +87,7 @@ async function refresh(){
 }
 
 chrome.alarms.onAlarm.addListener(async a => {
+  if (a.name === "phase"){ await notifyPhase(); await paint(await cached()); return; }
   if (a.name !== "tick") return;
   await paint(await cached());
   refresh();
@@ -94,4 +133,13 @@ chrome.runtime.onMessageExternal.addListener((msg, sender, send) => {
     }
   })();
   return true;
+});
+
+// clicar na notificação abre o painel lateral (ou o site)
+chrome.notifications.onClicked.addListener(id => {
+  chrome.notifications.clear(id);
+  chrome.windows.getLastFocused(w => {
+    if (chrome.sidePanel && w) chrome.sidePanel.open({ windowId: w.id }).catch(() => chrome.tabs.create({ url: SITE_URL }));
+    else chrome.tabs.create({ url: SITE_URL });
+  });
 });

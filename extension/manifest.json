@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Mesa de Estudos",
   "short_name": "Estudos",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Cronômetro no ícone e painel lateral com tarefas, notas, estatísticas e provas da sua Mesa de Estudos.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2N+bcFn+coqpAs6MaHbA5NSjH7vvlcXrYikaeNpF0fHlj8ebrGK9o2P4f7CHi0YU8QVMJS5Brsj2V4MleB5p5VQLMIJhIZsWVbrCxvkh3E8bafOskBQfgrA97k6i1c3i+4PgIK53pdBIXhu85r5ZTrYgqw8LoTIjzKKc8OXMrH5zJpyKKcrP5uC/jtcRpipj5e4Z8M4/aKqLFLCw3/hkHmVCPvZ1X4NZ6IcLUKmoXM++HQUmk/IbrsXnrFfzF0psL+1h85puAHCdRWw4IkHtjfra/xSPxpagWry/qDf6ilv10u0s0HwAhv21hVefWfgS/d77D1VWa66RmBKtiUAJYQIDAQAB",
   "icons": {
@@ -29,7 +29,8 @@
   "permissions": [
     "sidePanel",
     "alarms",
-    "storage"
+    "storage",
+    "notifications"
   ],
   "externally_connectable": {
     "matches": [

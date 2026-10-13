@@ -26,6 +26,8 @@
   <section id="view-timer" class="grid g2">
     <div class="panel clock" id="clockPanel">
       <button class="float-btn" type="button" id="floatBtn" title="Abrir cronômetro flutuante (fica por cima de tudo)" aria-label="Abrir cronômetro flutuante"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="19" height="15" rx="2.5"/><rect x="12" y="11" width="7" height="5.5" rx="1.2" fill="currentColor" stroke="none"/></svg><span>Flutuante</span></button>
+      <div class="modes" id="modeBar" role="group" aria-label="Tipo de cronômetro"></div>
+      <div class="mode-opts" id="modeOpts"></div>
       <div class="pick">
         <span class="label">O que você vai estudar agora?</span>
         <div class="cats" id="catPicker"></div>
@@ -35,6 +37,7 @@
           <button class="btn ghost sm" id="newCatCancel">Cancelar</button>
         </div>
       </div>
+      <span class="mode-pill" id="modePill" hidden></span>
       <div class="ring">
         <svg viewBox="0 0 240 240" aria-hidden="true"><circle cx="120" cy="120" r="106" fill="none" stroke="var(--sunk)" stroke-width="14"/><circle class="prog" id="ringProg" cx="120" cy="120" r="106" fill="none" stroke="var(--accent)" stroke-width="14" stroke-linecap="round" stroke-dasharray="666" stroke-dashoffset="666"/></svg>
         <div class="center"><div class="time" id="time">00:00:00</div><div class="goal" id="ringGoal"></div></div>

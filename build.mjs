@@ -95,7 +95,7 @@ writeFileSync("extension/manifest.json", JSON.stringify({
   action: { default_popup: "popup.html", default_title: "Mesa de Estudos", default_icon: { 16: "icons/icon-16.png", 32: "icons/icon-32.png" } },
   side_panel: { default_path: "sidepanel.html" },
   background: { service_worker: "background.js", type: "module" },
-  permissions: ["sidePanel", "alarms", "storage"],
+  permissions: ["sidePanel", "alarms", "storage", "notifications"],
   externally_connectable: { matches: [site.origin + "/*"] },
   commands: { _execute_action: { suggested_key: { default: "Alt+Shift+E" }, description: "Abrir o cronômetro" } },
 }, null, 2));

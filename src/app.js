@@ -50,7 +50,7 @@ const store = {
     this.unsubs.push(onSnapshot(this.base, snap => {
       if (snap.exists()){
         const d = clean(snap.data());
-        config = {categories: (d.categories&&d.categories.length)? d.categories : DEFAULT_CATS.slice(), exams: d.exams||[], running: d.running||null, dailyGoal: d.dailyGoal||240};
+        config = {categories: (d.categories&&d.categories.length)? d.categories : DEFAULT_CATS.slice(), exams: d.exams||[], running: d.running||null, dailyGoal: d.dailyGoal||240, timerPrefs: d.timerPrefs||null};
       } else if (first && !snap.metadata.fromCache){ this.saveConfig(); }
       first = false;
       restoreRunning(); renderAll(); markReady();
@@ -76,7 +76,7 @@ const store = {
   write(p){ p.catch(err => { console.error(err); setSync("error", err); }); return Promise.resolve(); },
   saveConfig(){
     if (!this.base) return Promise.resolve();
-    return this.write(setDoc(this.base, clean({categories: config.categories, exams: config.exams, running: config.running||null, dailyGoal: config.dailyGoal||240})));
+    return this.write(setDoc(this.base, clean({categories: config.categories, exams: config.exams, running: config.running||null, dailyGoal: config.dailyGoal||240, timerPrefs: config.timerPrefs||null})));
   },
   addSession(s){ const {id, ...body} = s; return this.write(setDoc(doc(this.base, "sessions", id), clean(body))); },
   delSession(id){ return this.write(deleteDoc(doc(this.base, "sessions", id))); },
@@ -115,18 +115,62 @@ function showTab(t){
 try { const t = localStorage.getItem("mesa.tab"); if (t) showTab(t); } catch(e){}
 
 /* ---------- cronômetro ---------- */
-// running = {cat, start (ms do início do trecho atual ou null se pausado), acc (segundos acumulados)}
+// running = {cat, mode, start (ms do trecho atual ou null), acc (s de estudo acumulados), first,
+//            task?, taskText?, target? (s, regressivo/simulado), questions?, done?,
+//            pomodoro: phase ("focus"|"short"|"long"), cycles, blockAcc (acc no início do bloco), breakStart, breakLen, cfg}
+const MODES = {free:"Livre", countdown:"Regressivo", pomodoro:"Pomodoro", exam:"Simulado"};
+const POMO_PRESETS = [
+  {id:"25-5",  label:"25/5", hint:"clássico", focus:25, short:5,  long:15, every:4},
+  {id:"50-10", label:"50/10", hint:"blocos longos", focus:50, short:10, long:20, every:3},
+  {id:"52-17", label:"52/17", hint:"ritmo de produtividade", focus:52, short:17, long:17, every:99},
+  {id:"90-20", label:"90/20", hint:"ciclo ultradiano", focus:90, short:20, long:30, every:3},
+];
+const JITTER = Math.random() * 1.5; // evita que site, painel e popup avancem a fase ao mesmo tempo
+function prefs(){
+  const p = config.timerPrefs || {};
+  return {mode: MODES[p.mode] ? p.mode : "free", cdMin: p.cdMin || 45, pomo: p.pomo || "25-5", auto: p.auto !== false,
+          examMin: p.examMin || 240, examQ: p.examQ || 60, sound: p.sound !== false};
+}
+function setPrefs(ch){ config.timerPrefs = {...prefs(), ...ch}; store.saveConfig(); renderTimer(); }
 function elapsed(){ const r = config.running; if (!r) return 0; return (r.acc||0) + (r.start ? (Date.now()-r.start)/1000 : 0); }
+function blockElapsed(){ const r = config.running; return r ? elapsed() - (r.blockAcc||0) : 0; }
+function isTimed(r){ return r && (r.mode==="countdown" || r.mode==="exam"); }
+function phaseInfo(){
+  const r = config.running; if (!r) return null;
+  if (isTimed(r)) return {kind: r.done ? "done" : "count", total: r.target, remaining: r.target - elapsed(), frac: Math.min(1, elapsed()/r.target)};
+  if (r.mode==="pomodoro"){
+    if (r.phase==="focus"){ const t = r.cfg.focus*60; return {kind:"focus", total:t, remaining: t - blockElapsed(), frac: Math.min(1, blockElapsed()/t), waiting: !r.start && blockElapsed() < 1}; }
+    const gone = (Date.now() - r.breakStart)/1000;
+    return {kind:"break", total: r.breakLen, remaining: r.breakLen - gone, frac: Math.min(1, gone/r.breakLen)};
+  }
+  return {kind:"free"};
+}
 function restoreRunning(){ if (config.running && !finishing) selCat = config.running.cat; }
-function startTimer(){ config.running = {cat: selCat, start: Date.now(), acc: 0, first: Date.now()}; store.saveConfig(); renderTimer(); }
+function startTimer(task){
+  const p = prefs(), now = Date.now();
+  const r = {cat: selCat, mode: p.mode, start: now, acc: 0, first: now};
+  if (task && task.id){ r.task = task.id; r.taskText = task.text; }
+  if (p.mode==="countdown") r.target = p.cdMin*60;
+  if (p.mode==="exam"){ r.target = p.examMin*60; r.questions = p.examQ; }
+  if (p.mode==="pomodoro"){
+    const c = POMO_PRESETS.find(x=>x.id===p.pomo) || POMO_PRESETS[0];
+    r.cfg = {focus:c.focus, short:c.short, long:c.long, every:c.every, auto:p.auto, label:c.label};
+    r.phase = "focus"; r.cycles = 0; r.blockAcc = 0;
+  }
+  config.running = r; unlockAudio(); askNotify();
+  store.saveConfig(); renderTimer();
+}
 function pauseTimer(){ const r = config.running; if (!r||!r.start) return; r.acc = (r.acc||0) + (Date.now()-r.start)/1000; r.start = null; store.saveConfig(); renderTimer(); }
-function resumeTimer(){ const r = config.running; if (!r||r.start) return; r.start = Date.now(); store.saveConfig(); renderTimer(); }
+function resumeTimer(){ const r = config.running; if (!r||r.start) return; if (r.mode==="pomodoro" && r.phase!=="focus") return; r.start = Date.now(); store.saveConfig(); renderTimer(); }
+function skipBreak(){ const r = config.running; if (!r || r.mode!=="pomodoro") return; r.phase = "focus"; r.blockAcc = r.acc||0; r.start = Date.now(); store.saveConfig(); renderTimer(); }
+function extendTimer(min){ const r = config.running; if (!isTimed(r)) return; r.target += min*60; r.done = false; if (!r.start) r.start = Date.now(); store.saveConfig(); renderTimer(); }
 function stopTimer(){
   const r = config.running; if (!r) return;
   const dur = elapsed();
   if (r.start){ r.acc = dur; r.start = null; store.saveConfig(); }
-  finishing = {cat: r.cat, first: r.first || (Date.now()-dur*1000), dur, task: r.task||null};
-  $("fQty").value = ""; $("fOk").value = ""; $("fNote").value = r.taskText || "";
+  finishing = {cat: r.cat, first: r.first || (Date.now()-dur*1000), dur, task: r.task||null, mode: r.mode, questions: r.questions, cycles: r.cycles};
+  $("fQty").value = ""; $("fOk").value = "";
+  $("fNote").value = r.taskText || (r.mode==="exam" ? "Simulado: "+(r.questions||"")+" questões em "+fmtGoal(Math.round((r.target||0)/60)) : r.mode==="pomodoro" && r.cycles ? "Pomodoro "+r.cfg.label+": "+r.cycles+(r.cycles===1?" ciclo":" ciclos") : "");
   $("fTaskWrap").hidden = !(r.task && tasks.some(t=>t.id===r.task && !t.done)); $("fTaskDone").checked = true;
   renderTimer();
 }
@@ -135,6 +179,7 @@ async function saveFinish(){
   const qty = parseInt($("fQty").value,10), ok = parseInt($("fOk").value,10);
   const c = catById(f.cat);
   const s = {id: uid(), cat: f.cat, catName: c.name, start: f.first, end: Date.now(), dur: Math.round(f.dur)};
+  if (f.mode && f.mode!=="free") s.mode = f.mode;
   if (!isNaN(qty)) s.qty = qty; if (!isNaN(ok)) s.ok = ok;
   const note = $("fNote").value.trim(); if (note) s.note = note;
   if (f.task && $("fTaskDone").checked){ const t = tasks.find(x=>x.id===f.task); if (t && !t.done) toggleTask(t, true); }
@@ -143,6 +188,65 @@ async function saveFinish(){
   renderAll();
 }
 function discardFinish(){ finishing = null; config.running = null; store.saveConfig(); renderAll(); }
+
+/* avança fases (fim do regressivo, pausas do pomodoro), inclusive as que passaram com o site fechado */
+function checkPhase(){
+  const r = config.running; if (!r || finishing) return;
+  let changed = false, alert = null;
+  for (let guard = 0; guard < 40; guard++){
+    const now = Date.now();
+    if (isTimed(r)){
+      if (r.done || !r.start) break;
+      const endAt = r.start + (r.target - (r.acc||0))*1000;
+      if (now < endAt + JITTER*1000) break;
+      r.acc = r.target; r.start = null; r.done = true; changed = true;
+      if (now - endAt < 90000) alert = r.mode==="exam" ? ["Fim do simulado", "Registre quantas questões você fez e quantas acertou."] : ["Tempo esgotado", "Seus "+fmtGoal(Math.round(r.target/60))+" terminaram."];
+      continue;
+    }
+    if (r.mode==="pomodoro"){
+      if (r.phase==="focus"){
+        if (!r.start) break;
+        const endAt = r.start + (r.cfg.focus*60 - ((r.acc||0) - (r.blockAcc||0)))*1000;
+        if (now < endAt + JITTER*1000) break;
+        r.acc = (r.blockAcc||0) + r.cfg.focus*60; r.start = null; r.cycles = (r.cycles||0) + 1;
+        const long = r.cycles % r.cfg.every === 0;
+        r.phase = long ? "long" : "short"; r.breakLen = (long ? r.cfg.long : r.cfg.short)*60; r.breakStart = endAt; changed = true;
+        if (now - endAt < 90000) alert = ["Hora da pausa", (long ? "Pausa longa" : "Pausa")+" de "+(r.breakLen/60)+" min. "+r.cycles+(r.cycles===1?" ciclo concluído.":" ciclos concluídos.")];
+        continue;
+      }
+      const endAt = r.breakStart + r.breakLen*1000;
+      if (now < endAt + JITTER*1000) break;
+      const fresh = now - endAt < 90000;
+      r.phase = "focus"; r.blockAcc = r.acc||0; r.start = (r.cfg.auto && fresh) ? endAt : null; changed = true;
+      if (fresh) alert = ["Fim da pausa", r.start ? "Novo foco de "+r.cfg.focus+" min começou." : "Quando quiser, comece o próximo foco."];
+      continue;
+    }
+    break;
+  }
+  if (changed){ store.saveConfig(); renderTimer(); if (alert) alertUser(alert[0], alert[1]); }
+}
+
+/* som e notificação */
+let audioCtx = null;
+function unlockAudio(){ try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === "suspended") audioCtx.resume(); } catch(e){} }
+function beep(){
+  if (!prefs().sound) return;
+  try {
+    unlockAudio(); const t = audioCtx.currentTime;
+    [[0,784],[0.28,988],[0.56,1175]].forEach(([d,f]) => {
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = "sine"; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t+d); g.gain.exponentialRampToValueAtTime(0.3, t+d+0.02); g.gain.exponentialRampToValueAtTime(0.0001, t+d+0.26);
+      o.connect(g).connect(audioCtx.destination); o.start(t+d); o.stop(t+d+0.28);
+    });
+  } catch(e){}
+}
+function askNotify(){ if (env.mode==="site" && prefs().mode!=="free" && "Notification" in window && Notification.permission==="default") Notification.requestPermission().catch(()=>{}); }
+function alertUser(title, body){
+  beep();
+  if (env.notify) env.notify(title, body);
+  const st = $("status"); if (st){ st.textContent = title+". "+body; }
+}
 
 const SVG = {
   play:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>',
@@ -156,36 +260,102 @@ const SVG = {
 function svgEl(name){ const s = document.createElement("span"); s.style.display = "contents"; s.innerHTML = SVG[name] || SVG.other; return s; }
 function catIcon(c){ return el("span",{class:"ci",style:"background:"+colorOf(c)}, svgEl(SVG[c.id] ? c.id : "other")); }
 
+function renderModeBar(){
+  const bar = $("modeBar"), opts = $("modeOpts"), p = prefs();
+  const idle = !config.running && !finishing;
+  bar.hidden = opts.hidden = !idle;
+  if (!idle) return;
+  bar.replaceChildren(...Object.entries(MODES).map(([k,v]) => el("button",{type:"button","aria-pressed":String(p.mode===k),onclick:()=>setPrefs({mode:k})}, v)));
+  opts.replaceChildren();
+  const opt = (label, on, fn, hint) => el("button",{type:"button",class:"opt","aria-pressed":String(on),title:hint||"",onclick:fn}, label);
+  const num = (id, val, min, max, step, onset, aria) => el("input",{type:"number",id,min:String(min),max:String(max),step:String(step),value:String(val),"aria-label":aria,onchange:e=>{ const v = parseFloat(e.target.value); if (v>=min && v<=max) onset(v); }});
+  if (p.mode==="free") opts.append(el("span",{class:"note-sm"},"Conta o tempo livremente até você encerrar."));
+  if (p.mode==="countdown"){
+    [15,25,45,60,90].forEach(m => opts.append(opt(fmtGoal(m), p.cdMin===m, ()=>setPrefs({cdMin:m}))));
+    opts.append(el("label",{class:"opt-in"}, num("cdMinIn", p.cdMin, 1, 600, 1, v=>setPrefs({cdMin:Math.round(v)}), "Minutos do regressivo"), "min"));
+  }
+  if (p.mode==="pomodoro"){
+    POMO_PRESETS.forEach(c => opts.append(opt(c.label, p.pomo===c.id, ()=>setPrefs({pomo:c.id}), c.hint+": "+c.focus+" min de foco e "+c.short+" de pausa")));
+    const c = POMO_PRESETS.find(x=>x.id===p.pomo) || POMO_PRESETS[0];
+    opts.append(el("span",{class:"note-sm opt-line"}, c.focus+" min de foco, "+c.short+" de pausa"+(c.every<20 ? ", e "+c.long+" de pausa longa a cada "+c.every+" ciclos" : "")+". Só o foco conta como estudo."));
+    opts.append(el("label",{class:"opt-check"}, el("input",{type:"checkbox",id:"pomoAuto",checked:p.auto,onchange:e=>setPrefs({auto:e.target.checked})}), "Emendar o próximo ciclo sozinho"));
+  }
+  if (p.mode==="exam"){
+    opts.append(el("label",{class:"opt-in"}, "Duração", num("examMinIn", p.examMin/60, 0.5, 8, 0.5, v=>setPrefs({examMin:Math.round(v*60)}), "Duração do simulado em horas"), "h"));
+    opts.append(el("label",{class:"opt-in"}, num("examQIn", p.examQ, 1, 300, 1, v=>setPrefs({examQ:Math.round(v)}), "Número de questões"), "questões"));
+    opts.append(el("span",{class:"note-sm opt-line"}, "Ritmo: "+(p.examMin/p.examQ).toFixed(1).replace(".",",")+" min por questão. Prova da FCC para Analista: 4h e 60 questões, mais a redação."));
+  }
+  if (p.mode!=="free") opts.append(el("label",{class:"opt-check"}, el("input",{type:"checkbox",id:"soundOn",checked:p.sound,onchange:e=>setPrefs({sound:e.target.checked})}), "Aviso sonoro"));
+}
+
 function renderTimer(){
-  const r = config.running;
-  $("clockPanel").dataset.state = finishing ? "finishing" : !r ? "idle" : r.start ? "running" : "paused";
+  const r = config.running, p = prefs();
+  const ph = !finishing && r ? phaseInfo() : null;
+  const panel = $("clockPanel");
+  panel.dataset.state = finishing ? "finishing" : !r ? "idle" : (ph && ph.kind==="break") ? "break" : (ph && ph.kind==="done") ? "done" : r.start ? "running" : "paused";
   const picker = $("catPicker"); picker.replaceChildren();
   const locked = !!r || !!finishing;
   config.categories.forEach(c => picker.append(el("button",{class:"chip",style:"--chipc:"+colorOf(c),"aria-pressed": String(selCat===c.id), disabled: locked && selCat!==c.id, onclick:()=>{ if(locked) return; selCat=c.id; renderTimer(); }}, catIcon(c), c.name)));
   if (!locked) picker.append(el("button",{class:"chip add",onclick:()=>{ $("newCatRow").hidden=false; $("newCatName").focus(); }}, "+ Nova atividade"));
+  renderModeBar();
 
-  const t = $("time"), st = $("status"), ctr = $("controls");
+  const t = $("time"), st = $("status"), ctr = $("controls"), pill = $("modePill");
   ctr.replaceChildren();
   $("finish").hidden = !finishing;
-  $("goalEdit").hidden = !!finishing;
+  $("goalEdit").hidden = !!finishing || !!r;
+  pill.hidden = !r || !!finishing || r.mode==="free" || !r.mode;
+  const big = (cls, icon, label, fn) => el("button",{class:"btn big"+(cls?" "+cls:""),type:"button",onclick:fn}, icon ? svgEl(icon) : null, label);
   if (finishing){
     t.textContent = fmtClock(finishing.dur); t.classList.add("paused");
     st.textContent = "Sessão encerrada: "+fmtDur(finishing.dur)+" de "+catById(finishing.cat).name.toLowerCase()+".";
     $("finishDur").textContent = "";
-    $("qtyLabel").textContent = (QTY_LABEL[finishing.cat]||"Quantidade")+" (opcional)";
+    $("qtyLabel").textContent = (finishing.mode==="exam" ? "Questões feitas" : (QTY_LABEL[finishing.cat]||"Quantidade"))+" (opcional)";
+    $("fQty").placeholder = finishing.mode==="exam" && finishing.questions ? String(finishing.questions) : "";
   } else if (!r){
-    t.textContent = "00:00:00"; t.classList.remove("paused");
+    t.classList.remove("paused");
+    const preview = {free:0, countdown:p.cdMin*60, exam:p.examMin*60, pomodoro:((POMO_PRESETS.find(x=>x.id===p.pomo)||POMO_PRESETS[0]).focus)*60}[p.mode];
+    t.textContent = fmtClock(preview);
     const done = todaySeconds();
     st.textContent = done > 0 ? "Você já estudou "+fmtDur(done)+" hoje. Vamos para mais uma rodada?" : "Escolha a atividade e aperte começar.";
-    ctr.append(el("button",{class:"btn primary big",onclick:startTimer}, svgEl("play"), "Começar"));
+    const label = {free:"Começar", countdown:"Começar "+fmtGoal(p.cdMin), pomodoro:"Começar foco", exam:"Começar simulado"}[p.mode];
+    ctr.append(big("primary","play",label,()=>startTimer()));
   } else {
-    t.textContent = fmtClock(elapsed()); t.classList.toggle("paused", !r.start);
     const since = new Date(r.first||Date.now());
-    st.textContent = r.start ? (r.taskText ? "Estudando: "+r.taskText+" · desde " : "Estudando "+catById(r.cat).name.toLowerCase()+" desde ")+pad(since.getHours())+":"+pad(since.getMinutes())+"." : "Pausado. Respira, e retome quando quiser.";
-    ctr.append(r.start ? el("button",{class:"btn big",onclick:pauseTimer}, svgEl("pause"), "Pausar") : el("button",{class:"btn primary big",onclick:resumeTimer}, svgEl("play"), "Continuar"));
-    ctr.append(el("button",{class:"btn big"+(r.start?" primary":""),onclick:stopTimer}, svgEl("stop"), "Encerrar"));
+    const what = r.taskText ? r.taskText : catById(r.cat).name.toLowerCase();
+    if (ph.kind==="done"){
+      st.textContent = r.mode==="exam" ? "Fim do simulado! Registre as questões feitas." : "Tempo esgotado! Registre a sessão ou estenda o tempo.";
+      ctr.append(big("primary","stop","Registrar sessão",stopTimer), big("",null,"+5 min",()=>extendTimer(5)), big("",null,"+15 min",()=>extendTimer(15)));
+    } else if (ph.kind==="break"){
+      st.textContent = (r.phase==="long" ? "Pausa longa" : "Pausa")+": levante, beba água, descanse a vista.";
+      ctr.append(big("primary","play","Pular pausa",skipBreak), big("","stop","Encerrar",stopTimer));
+    } else if (ph.kind==="focus" && ph.waiting && r.cycles){
+      st.textContent = "Pausa encerrada. Pronto para o próximo foco?";
+      ctr.append(big("primary","play","Começar foco",resumeTimer), big("","stop","Encerrar",stopTimer));
+    } else {
+      st.textContent = r.start ? (r.taskText ? "Estudando: "+r.taskText+" · desde " : "Estudando "+what+" desde ")+pad(since.getHours())+":"+pad(since.getMinutes())+"." : "Pausado. Respira, e retome quando quiser.";
+      ctr.append(r.start ? big("","pause","Pausar",pauseTimer) : big("primary","play","Continuar",resumeTimer));
+      ctr.append(big(r.start?"primary":"","stop","Encerrar",stopTimer));
+    }
   }
-  renderGoalEdit(); updateRing();
+  renderGoalEdit(); updateTimeDisplay();
+}
+
+/* tempo, anel e linha de ritmo (atualizados a cada segundo) */
+function updateTimeDisplay(){
+  const r = config.running, t = $("time");
+  if (finishing || !r){ updateRing(); return; }
+  const ph = phaseInfo();
+  t.classList.toggle("paused", !r.start && ph.kind!=="break");
+  t.textContent = ph.kind==="free" ? fmtClock(elapsed()) : fmtClock(Math.max(0, Math.ceil(ph.remaining)));
+  const pill = $("modePill");
+  if (r.mode==="pomodoro") pill.textContent = "Pomodoro "+r.cfg.label+" · "+(ph.kind==="break" ? (r.phase==="long"?"pausa longa":"pausa") : "foco "+((r.cycles||0)+1));
+  else if (r.mode==="countdown") pill.textContent = "Regressivo · "+fmtGoal(Math.round(r.target/60));
+  else if (r.mode==="exam") pill.textContent = "Simulado · "+r.questions+" questões";
+  if (r.mode==="exam" && ph.kind==="count" && r.start){
+    const per = r.target / r.questions, q = Math.min(r.questions, Math.floor(elapsed()/per) + 1);
+    $("status").textContent = "Pelo ritmo, você deveria estar na questão "+q+" de "+r.questions+" ("+(per/60).toFixed(1).replace(".",",")+" min cada).";
+  }
+  updateRing();
 }
 
 /* meta diária + anel */
@@ -196,6 +366,14 @@ function todaySeconds(){
 }
 function fmtGoal(min){ const h = Math.floor(min/60), m = min%60; return h ? h+"h"+(m? pad(m) : "") : m+"min"; }
 function updateRing(){
+  const r = config.running;
+  if (r && !finishing && r.mode && r.mode!=="free"){
+    const ph = phaseInfo(), pr = $("ringProg"), g = $("ringGoal");
+    pr.setAttribute("stroke-dashoffset", (666*(1-ph.frac)).toFixed(1));
+    pr.setAttribute("stroke", ph.kind==="break" ? "var(--warn)" : ph.kind==="done" ? "var(--good)" : "var(--cat5)");
+    g.replaceChildren(ph.kind==="break" ? "pausa de "+Math.round(ph.total/60)+" min" : ph.kind==="done" ? "concluído" : el("b",{}, fmtDur(r.mode==="pomodoro" ? blockElapsed() : elapsed())), ph.kind==="count"||ph.kind==="focus" ? " de "+fmtGoal(Math.round(ph.total/60)) : "");
+    return;
+  }
   const goal = (config.dailyGoal||240)*60, done = todaySeconds();
   const frac = Math.min(1, done/goal);
   const pr = $("ringProg"); pr.setAttribute("stroke-dashoffset", (666*(1-frac)).toFixed(1));
@@ -857,8 +1035,7 @@ function startTask(t){
   if (config.running || finishing) return;
   if (t.cat && config.categories.some(c=>c.id===t.cat)) selCat = t.cat;
   showTab("timer");
-  config.running = {cat: selCat, start: Date.now(), acc: 0, first: Date.now(), task: t.id, taskText: t.text};
-  store.saveConfig(); renderAll();
+  startTimer(t);
 }
 function addTask(text, cat, due){
   text = (text||"").trim(); if (!text) return false;
@@ -1039,7 +1216,7 @@ function renderAll(){
   if (!$("view-exams").hidden) renderExams();
 }
 setInterval(() => {
-  if (config.running && config.running.start && !finishing){ $("time").textContent = fmtClock(elapsed()); updateRing(); }
+  if (config.running && !finishing){ checkPhase(); updateTimeDisplay(); }
   document.querySelectorAll("[data-live]").forEach(n => { const e = config.exams.find(x=>x.id===n.dataset.live); if (e){ const cd = countdown(e); n.textContent = fmtExamDate(e)+(cd.past?"":" · "+cd.text); } });
   const nl = $("nextLive"); if (nl){ const e = upcomingExams()[0]; if (e) nl.textContent = "Faltam "+countdown(e).text; }
 }, 1000);
