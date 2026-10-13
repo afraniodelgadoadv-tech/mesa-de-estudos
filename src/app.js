@@ -1196,7 +1196,7 @@ async function openFloating(){
   }
   const clock = $("clockPanel");
   let win;
-  try { win = await documentPictureInPicture.requestWindow({ width: 210, height: 70 }); }
+  try { win = await documentPictureInPicture.requestWindow({ width: 150, height: 40 }); }
   catch (e){ $("status").textContent = "Não consegui abrir a janela flutuante: " + (e.message || e); return; }
   pipWin = win;
   [...document.styleSheets].forEach(ss => {

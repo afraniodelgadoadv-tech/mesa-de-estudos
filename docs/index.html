@@ -579,6 +579,13 @@ body.pip .mini-toggle{display:grid;place-items:center;width:28px;height:28px;bor
 body.pip .mini-toggle svg{width:12px;height:12px}
 body.pip .clock[data-state="running"] .mini-toggle{background:var(--sunk);color:var(--ink)}
 body.pip .clock[data-state="break"] .mini-toggle{background:var(--warn);color:#fff}
+
+/* Flutuante ainda menor: o conteúdo acompanha o tamanho da janela (pode encolher arrastando o canto) */
+body.pip .clock{padding:0 6px}
+body.pip .ring .center{gap:min(6px,2vw)}
+body.pip .time{font-size:min(56vh, 15.5vw, 44px);font-weight:800;line-height:1}
+body.pip .mini-toggle{width:min(62vh, 13vw, 30px);height:min(62vh, 13vw, 30px)}
+body.pip .mini-toggle svg{width:45%;height:45%}
 </style>
 <meta name="theme-color" content="#12806D"><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icons/icon-32.png"><link rel="apple-touch-icon" href="icons/icon-180.png">
 </head>

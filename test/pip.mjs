@@ -13,7 +13,7 @@ console.log("running:", JSON.stringify(await q()));
 await p.evaluate(()=>documentPictureInPicture.window.document.getElementById("miniToggle").click()); await p.waitForTimeout(300);
 console.log("paused:", JSON.stringify(await q()));
 // render the pip look into a screenshot
-const g = await browser.newPage({viewport:{width:210,height:70}});
+const g = await browser.newPage({viewport:{width:150,height:40}});
 await g.goto("http://localhost:8768/site.html"); await g.waitForTimeout(100); await g.evaluate(()=>window.__login()); await g.waitForTimeout(150);
 await g.evaluate(()=>document.querySelector("#controls button").click()); await g.waitForTimeout(1200);
 await g.evaluate(()=>{ const c=document.getElementById("clockPanel"); document.body.className="pip"; document.body.replaceChildren(c); });
