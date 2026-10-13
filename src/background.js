@@ -101,6 +101,24 @@ chrome.runtime.onInstalled.addListener(setup);
 chrome.runtime.onStartup.addListener(setup);
 
 /* ---------- ações da pílula (mini cronômetro dentro das páginas) ---------- */
+async function togglePill(flip){
+  const on = !!(await chrome.storage.local.get("pillOn")).pillOn;
+  if (!flip) return on;
+  await chrome.storage.local.set({ pillOn: !on });
+  return !on;
+}
+chrome.commands.onCommand.addListener(cmd => { if (cmd === "toggle-pill") togglePill(true); });
+const POMO = { "25-5": [25,5,15,4,"25/5"], "50-10": [50,10,20,3,"50/10"], "52-17": [52,17,17,99,"52/17"], "90-20": [90,20,30,3,"90/20"] };
+function newRunning(cfgDoc){
+  const p = cfgDoc.timerPrefs || {}, now = Date.now(), mode = p.mode || "free";
+  const cats = cfgDoc.categories || [];
+  const cat = (cfgDoc.lastCat && cats.some(c => c.id === cfgDoc.lastCat)) ? cfgDoc.lastCat : (cats[0] ? cats[0].id : "questoes");
+  const r = { cat, mode, start: now, acc: 0, first: now };
+  if (mode === "countdown") r.target = (p.cdMin || 45) * 60;
+  if (mode === "exam"){ r.target = (p.examMin || 240) * 60; r.questions = p.examQ || 60; }
+  if (mode === "pomodoro"){ const c = POMO[p.pomo || "25-5"] || POMO["25-5"]; r.cfg = { focus: c[0], short: c[1], long: c[2], every: c[3], auto: p.auto !== false, label: c[4] }; r.phase = "focus"; r.cycles = 0; r.blockAcc = 0; }
+  return r;
+}
 const FLOAT_URL = "float.html";
 async function openFinishWindow(){
   const { floatWin } = await chrome.storage.session.get("floatWin");
@@ -113,7 +131,13 @@ async function pillAction(action){
   const u = auth.currentUser; if (!u) return { ok: false, message: "Entre na extensão primeiro." };
   const ref = doc(db, "users", u.uid);
   const snap = await getDoc(ref);
-  const r = snap.exists() ? snap.data().running : null;
+  let r = snap.exists() ? snap.data().running : null;
+  if (!r && action === "play" && snap.exists()){
+    r = newRunning(snap.data());
+    await updateDoc(ref, { running: r });
+    await setRunning(r);
+    return { ok: true };
+  }
   if (!r) { await setRunning(null); return { ok: false }; }
   const now = Date.now();
   const acc = () => (r.acc || 0) + (r.start ? (now - r.start) / 1000 : 0);
@@ -145,6 +169,10 @@ chrome.runtime.onMessage.addListener((msg, sender, send) => {
 
 /* ---------- login: a página auth.html do site envia a credencial do Google ---------- */
 chrome.runtime.onMessageExternal.addListener((msg, sender, send) => {
+  if (msg && sender.origin === SITE_ORIGIN && (msg.type === "pill-state" || msg.type === "pill-toggle")){
+    togglePill(msg.type === "pill-toggle").then(on => send({ on }));
+    return true;
+  }
   if (!msg || msg.type !== "credential" || sender.origin !== SITE_ORIGIN) return false;
   (async () => {
     try {

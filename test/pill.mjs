@@ -9,6 +9,13 @@ await p.goto("http://localhost:8770/"); await p.waitForTimeout(800);
 console.log("pill before running:", await p.evaluate(()=>!!document.getElementById("mesa-pill-host")));
 await sw.evaluate(() => chrome.storage.local.set({ running: { cat:"questoes", mode:"pomodoro", start: Date.now()-5*60000, acc:0, blockAcc:0, phase:"focus", cycles:0, first: 123, cfg:{focus:25,short:5,long:15,every:4,auto:true,label:"25/5"} } }));
 await p.waitForTimeout(1300);
+console.log("pill after running (off):", await p.evaluate(()=>!!document.getElementById("mesa-pill-host")));
+// liga pelo botão do popup
+const pop = await ctx.newPage(); await pop.goto(`chrome-extension://${sw.url().split("/")[2]}/popup.html`); await pop.waitForTimeout(1500);
+console.log("popup pill button visible:", await pop.isVisible("#pillBtn"));
+await pop.evaluate(()=>document.getElementById("pillBtn").click()); await pop.waitForTimeout(300);
+console.log("pressed:", await pop.getAttribute("#pillBtn","aria-pressed"));
+await p.bringToFront(); await p.waitForTimeout(1200);
 console.log("pill after running:", await p.evaluate(()=>!!document.getElementById("mesa-pill-host")));
 await p.screenshot({path:"test/out/pill.png"});
 const box = await p.evaluate(()=>{ const r=document.getElementById("mesa-pill-host").getBoundingClientRect(); return {x:r.x,y:r.y,w:r.width,h:r.height}; });
@@ -22,5 +29,8 @@ await sw.evaluate(() => chrome.storage.local.set({ running: { cat:"questoes", mo
 await p.waitForTimeout(500);
 console.log("paused shows:", await p.evaluate(()=>document.getElementById("mesa-pill-host") ? "visible" : "gone"));
 await sw.evaluate(() => chrome.storage.local.set({ running: null })); await p.waitForTimeout(400);
-console.log("stopped:", await p.evaluate(()=>!!document.getElementById("mesa-pill-host")), "ERRORS:", errs.length?errs:"none");
+console.log("idle while on:", await p.evaluate(()=>!!document.getElementById("mesa-pill-host")));
+await p.screenshot({path:"test/out/pill-idle.png"});
+await sw.evaluate(() => chrome.storage.local.set({ pillOn: false })); await p.waitForTimeout(400);
+console.log("turned off:", await p.evaluate(()=>!!document.getElementById("mesa-pill-host")), "ERRORS:", errs.length?errs:"none");
 await ctx.close(); srv.close();

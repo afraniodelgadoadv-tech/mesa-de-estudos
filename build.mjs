@@ -99,7 +99,7 @@ writeFileSync("extension/manifest.json", JSON.stringify({
   permissions: ["sidePanel", "alarms", "storage", "notifications"],
   externally_connectable: { matches: [site.origin + "/*"] },
   content_scripts: [{ matches: ["<all_urls>"], js: ["content.js"], run_at: "document_idle" }],
-  commands: { _execute_action: { suggested_key: { default: "Alt+Shift+E" }, description: "Abrir o cronômetro" } },
+  commands: { _execute_action: { suggested_key: { default: "Alt+Shift+E" }, description: "Abrir o cronômetro" }, "toggle-pill": { suggested_key: { default: "Alt+Shift+P" }, description: "Mostrar ou esconder a pílula" } },
 }, null, 2));
 
 // ícones

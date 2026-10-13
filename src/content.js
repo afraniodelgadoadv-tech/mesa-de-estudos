@@ -1,4 +1,4 @@
-// Pílula: mini cronômetro arrastável dentro das páginas (aparece enquanto um estudo está em andamento).
+// Pílula: mini cronômetro arrastável dentro das páginas. Só aparece quando ligada (botão da pílula ou Alt+Shift+P).
 (() => {
   if (window.top !== window || document.getElementById("mesa-pill-host")) return;
   if (location.origin === "https://afraniodelgadoadv-tech.github.io") return; // o site já mostra o cronômetro
@@ -28,13 +28,13 @@
     <span class="dot"></span><span class="t">--:--</span>
     <button class="pp" type="button" aria-label="Pausar"></button>
     <button class="stop" type="button" aria-label="Finalizar" title="Finalizar e registrar"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2.5"/></svg></button>
-    <button class="x" type="button" aria-label="Esconder até o próximo estudo" title="Esconder até o próximo estudo">×</button>
+    <button class="x" type="button" aria-label="Esconder a pílula" title="Esconder a pílula (religue pelo botão ou Alt+Shift+P)">×</button>
   </div>`;
   const pill = root.querySelector(".pill"), tEl = root.querySelector(".t"), pp = root.querySelector(".pp");
   const ICON = { pause: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="4" width="5" height="16" rx="1.5"/><rect x="14" y="4" width="5" height="16" rx="1.5"/></svg>',
                  play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12-7.5a1 1 0 0 0 0-1.72l-12-7.5A1 1 0 0 0 7 4.5z"/></svg>' };
 
-  let running = null, hiddenFor = null, pos = null, attached = false;
+  let running = null, pillOn = false, pos = null, attached = false;
   const pad = n => String(n).padStart(2, "0");
   const clock = s => { s = Math.max(0, Math.floor(s)); const h = Math.floor(s / 3600); return (h ? h + ":" : "") + pad(Math.floor(s % 3600 / 60)) + ":" + pad(s % 60); };
   const elapsed = r => (r.acc || 0) + (r.start ? (Date.now() - r.start) / 1000 : 0);
@@ -53,9 +53,11 @@
     host.style.left = x + "px"; host.style.top = y + "px";
   }
   function render(){
-    const show = running && !running.pendingFinish && hiddenFor !== running.first;
-    if (!show){ if (attached){ host.remove(); attached = false; } return; }
+    if (!pillOn){ if (attached){ host.remove(); attached = false; } return; }
     if (!attached){ (document.body || document.documentElement).appendChild(host); attached = true; place(); }
+    const idle = !running || running.pendingFinish;
+    root.querySelector(".stop").style.display = idle ? "none" : "";
+    if (idle){ pill.dataset.k = "paused"; tEl.textContent = "00:00"; pp.innerHTML = ICON.play; pp.setAttribute("aria-label", "Começar a estudar"); pp.title = "Começar (usa o último modo e atividade)"; return; }
     const v = view(running);
     pill.dataset.k = v.k;
     tEl.textContent = clock(v.s);
@@ -67,7 +69,7 @@
   const act = action => chrome.runtime.sendMessage({ type: "pill", action }).catch(() => {});
   pp.addEventListener("click", e => { e.stopPropagation(); const v = running && view(running); act(v && (v.k === "run" || v.k === "count") ? "pause" : "play"); });
   root.querySelector(".stop").addEventListener("click", e => { e.stopPropagation(); act("stop"); });
-  root.querySelector(".x").addEventListener("click", e => { e.stopPropagation(); hiddenFor = running && running.first; chrome.storage.local.set({ pillHiddenFor: hiddenFor }); render(); });
+  root.querySelector(".x").addEventListener("click", e => { e.stopPropagation(); chrome.storage.local.set({ pillOn: false }); });
 
   // arrastar (posição guardada em proporção da tela, igual em todos os sites)
   pill.addEventListener("pointerdown", e => {
@@ -81,12 +83,12 @@
   });
   addEventListener("resize", () => attached && place());
 
-  chrome.storage.local.get(["running", "pillPos", "pillHiddenFor"], d => { running = d.running || null; pos = d.pillPos || null; hiddenFor = d.pillHiddenFor || null; render(); });
+  chrome.storage.local.get(["running", "pillPos", "pillOn"], d => { running = d.running || null; pos = d.pillPos || null; pillOn = !!d.pillOn; render(); });
   chrome.storage.onChanged.addListener((ch, area) => {
     if (area !== "local") return;
     if (ch.running) running = ch.running.newValue || null;
     if (ch.pillPos){ pos = ch.pillPos.newValue || null; if (attached) place(); }
-    if (ch.pillHiddenFor) hiddenFor = ch.pillHiddenFor.newValue || null;
+    if (ch.pillOn) pillOn = !!ch.pillOn.newValue;
     render();
   });
   setInterval(() => { if (attached && !document.hidden) render(); }, 1000);

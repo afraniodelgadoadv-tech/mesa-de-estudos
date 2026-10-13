@@ -50,7 +50,7 @@ const store = {
     this.unsubs.push(onSnapshot(this.base, snap => {
       if (snap.exists()){
         const d = clean(snap.data());
-        config = {categories: (d.categories&&d.categories.length)? d.categories : DEFAULT_CATS.slice(), exams: d.exams||[], running: d.running||null, dailyGoal: d.dailyGoal||240, timerPrefs: d.timerPrefs||null};
+        config = {categories: (d.categories&&d.categories.length)? d.categories : DEFAULT_CATS.slice(), exams: d.exams||[], running: d.running||null, dailyGoal: d.dailyGoal||240, timerPrefs: d.timerPrefs||null, lastCat: d.lastCat||null};
       } else if (first && !snap.metadata.fromCache){ this.saveConfig(); }
       first = false;
       restoreRunning();
@@ -79,7 +79,7 @@ const store = {
   write(p){ p.catch(err => { console.error(err); setSync("error", err); }); return Promise.resolve(); },
   saveConfig(){
     if (!this.base) return Promise.resolve();
-    return this.write(setDoc(this.base, clean({categories: config.categories, exams: config.exams, running: config.running||null, dailyGoal: config.dailyGoal||240, timerPrefs: config.timerPrefs||null})));
+    return this.write(setDoc(this.base, clean({categories: config.categories, exams: config.exams, running: config.running||null, dailyGoal: config.dailyGoal||240, timerPrefs: config.timerPrefs||null, lastCat: config.lastCat||null})));
   },
   addSession(s){ const {id, ...body} = s; return this.write(setDoc(doc(this.base, "sessions", id), clean(body))); },
   delSession(id){ return this.write(deleteDoc(doc(this.base, "sessions", id))); },
@@ -160,7 +160,7 @@ function startTimer(task){
     r.cfg = {focus:c.focus, short:c.short, long:c.long, every:c.every, auto:p.auto, label:c.label};
     r.phase = "focus"; r.cycles = 0; r.blockAcc = 0;
   }
-  config.running = r; unlockAudio(); askNotify();
+  config.running = r; config.lastCat = selCat; unlockAudio(); askNotify();
   store.saveConfig(); renderTimer();
 }
 function pauseTimer(){ const r = config.running; if (!r||!r.start) return; r.acc = (r.acc||0) + (Date.now()-r.start)/1000; r.start = null; store.saveConfig(); renderTimer(); }
@@ -1230,6 +1230,13 @@ async function openFloating(){
 $("floatBtn").addEventListener("click", openFloating);
 if (env.mode === "float") $("floatBtn").querySelector("span").textContent = "Fixar por cima de tudo";
 else $("floatBtn").querySelector("span").remove();
+// pílula: só aparece quando você liga por este botão (ou Alt+Shift+P)
+if (env.pill && env.mode !== "float"){
+  const pb = $("pillBtn");
+  env.pill.state().then(on => { if (on === null) return; pb.hidden = false; pb.setAttribute("aria-pressed", String(!!on)); });
+  pb.addEventListener("click", async () => { const on = await env.pill.toggle(); if (on !== null) pb.setAttribute("aria-pressed", String(!!on)); });
+  if (env.pill.onChange) env.pill.onChange(on => pb.setAttribute("aria-pressed", String(!!on)));
+}
 
 /* ---------- ciclo ---------- */
 function renderAll(){

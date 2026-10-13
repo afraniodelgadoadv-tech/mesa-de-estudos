@@ -35,6 +35,11 @@ startApp({
   },
   onFloatOpen: () => { if (mode === "float") chrome.windows.getCurrent(w => chrome.windows.update(w.id, { state: "minimized" })); },
   onFloatClose: () => { if (mode === "float") chrome.windows.getCurrent(w => chrome.windows.update(w.id, { state: "normal", focused: true })); },
+  pill: {
+    state: async () => !!(await chrome.storage.local.get("pillOn")).pillOn,
+    toggle: async () => { const on = !(await chrome.storage.local.get("pillOn")).pillOn; await chrome.storage.local.set({ pillOn: on }); return on; },
+    onChange: cb => chrome.storage.onChanged.addListener((ch, area) => { if (area === "local" && ch.pillOn) cb(!!ch.pillOn.newValue); }),
+  },
   openPanel: () => {
     if (chrome.sidePanel && windowId != null) { chrome.sidePanel.open({ windowId }).catch(() => chrome.tabs.create({ url: SITE_URL })); }
     else chrome.tabs.create({ url: SITE_URL });
