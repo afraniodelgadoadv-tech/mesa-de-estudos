@@ -579,15 +579,10 @@ body.pip .mini-toggle{display:grid;place-items:center;width:28px;height:28px;bor
 body.pip .mini-toggle svg{width:12px;height:12px}
 body.pip .clock[data-state="running"] .mini-toggle{background:var(--sunk);color:var(--ink)}
 body.pip .clock[data-state="break"] .mini-toggle{background:var(--warn);color:#fff}
-
-/* Flutuante ainda menor: o conteúdo acompanha o tamanho da janela (pode encolher arrastando o canto) */
-body.pip .clock{padding:0 6px}
-body.pip .ring .center{gap:min(6px,2vw)}
-body.pip .time{font-size:min(56vh, 15.5vw, 44px);font-weight:800;line-height:1}
-body.pip .mini-toggle{width:min(62vh, 13vw, 30px);height:min(62vh, 13vw, 30px)}
-body.pip .mini-toggle svg{width:45%;height:45%}
-body.pip .time{font-size:min(48vh, 11vw, 30px)}
-body.pip .mini-toggle{width:min(50vh, 9vw, 24px);height:min(50vh, 9vw, 24px)}
+body.pip .mini-stop{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;border:0;background:var(--accent);color:var(--accent-ink);cursor:pointer;flex:none;padding:0;margin-left:-4px}
+body.pip .mini-stop svg{width:11px;height:11px}
+body.pip .clock[data-state="running"] .mini-stop{background:var(--accent)}
+.mini-stop{display:none}
 </style>
 <meta name="theme-color" content="#12806D"><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icons/icon-32.png"><link rel="apple-touch-icon" href="icons/icon-180.png">
 </head>
@@ -634,7 +629,7 @@ body.pip .mini-toggle{width:min(50vh, 9vw, 24px);height:min(50vh, 9vw, 24px)}
       <span class="mode-pill" id="modePill" hidden></span>
       <div class="ring">
         <svg viewBox="0 0 240 240" aria-hidden="true"><circle cx="120" cy="120" r="106" fill="none" stroke="var(--sunk)" stroke-width="14"/><circle class="prog" id="ringProg" cx="120" cy="120" r="106" fill="none" stroke="var(--accent)" stroke-width="14" stroke-linecap="round" stroke-dasharray="666" stroke-dashoffset="666"/></svg>
-        <div class="center"><div class="time" id="time">00:00:00</div><button class="mini-toggle" type="button" id="miniToggle" aria-label="Pausar ou continuar"></button><div class="goal" id="ringGoal"></div></div>
+        <div class="center"><div class="time" id="time">00:00:00</div><button class="mini-toggle" type="button" id="miniToggle" aria-label="Pausar ou continuar"></button><button class="mini-stop" type="button" id="miniStop" aria-label="Finalizar e registrar a sessão" title="Finalizar e registrar a sessão"></button><div class="goal" id="ringGoal"></div></div>
       </div>
       <div class="status" id="status"></div>
       <div class="controls" id="controls"></div>

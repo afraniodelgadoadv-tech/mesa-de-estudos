@@ -12,8 +12,10 @@ await p.evaluate(()=>documentPictureInPicture.window.document.getElementById("mi
 console.log("running:", JSON.stringify(await q()));
 await p.evaluate(()=>documentPictureInPicture.window.document.getElementById("miniToggle").click()); await p.waitForTimeout(300);
 console.log("paused:", JSON.stringify(await q()));
+await p.evaluate(()=>documentPictureInPicture.window.document.getElementById("miniStop").click()); await p.waitForTimeout(400);
+console.log("after finish: pip open?", await p.evaluate(()=>!!documentPictureInPicture.window), "| finish form visible:", await p.isVisible("#finish"), "| state:", await p.getAttribute("#clockPanel","data-state"));
 // render the pip look into a screenshot
-const g = await browser.newPage({viewport:{width:150,height:40}});
+const g = await browser.newPage({viewport:{width:250,height:70}});
 await g.goto("http://localhost:8768/site.html"); await g.waitForTimeout(100); await g.evaluate(()=>window.__login()); await g.waitForTimeout(150);
 await g.evaluate(()=>document.querySelector("#controls button").click()); await g.waitForTimeout(1200);
 await g.evaluate(()=>{ const c=document.getElementById("clockPanel"); document.body.className="pip"; document.body.replaceChildren(c); });
