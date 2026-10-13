@@ -337,7 +337,19 @@ function renderTimer(){
       ctr.append(big(r.start?"primary":"","stop","Encerrar",stopTimer));
     }
   }
-  renderGoalEdit(); updateTimeDisplay();
+  renderGoalEdit(); updateTimeDisplay(); renderMini();
+}
+
+/* botão único da janela flutuante: pausar / continuar */
+function renderMini(){
+  const b = $("miniToggle"); if (!b) return;
+  const r = config.running, ph = r && !finishing ? phaseInfo() : null;
+  let icon = "play", label = "Começar", fn = () => startTimer();
+  if (finishing || (ph && ph.kind==="done")){ icon = "stop"; label = "Registrar sessão (abre a janela principal)"; fn = () => { if (pipWin) pipWin.close(); if (ph && ph.kind==="done") stopTimer(); }; }
+  else if (ph && ph.kind==="break"){ icon = "play"; label = "Pular pausa"; fn = skipBreak; }
+  else if (r && r.start){ icon = "pause"; label = "Pausar"; fn = pauseTimer; }
+  else if (r){ icon = "play"; label = "Continuar"; fn = resumeTimer; }
+  b.replaceChildren(svgEl(icon)); b.title = label; b.setAttribute("aria-label", label); b.onclick = fn;
 }
 
 /* tempo, anel e linha de ritmo (atualizados a cada segundo) */
@@ -1184,7 +1196,7 @@ async function openFloating(){
   }
   const clock = $("clockPanel");
   let win;
-  try { win = await documentPictureInPicture.requestWindow({ width: 280, height: 210 }); }
+  try { win = await documentPictureInPicture.requestWindow({ width: 210, height: 70 }); }
   catch (e){ $("status").textContent = "Não consegui abrir a janela flutuante: " + (e.message || e); return; }
   pipWin = win;
   [...document.styleSheets].forEach(ss => {
@@ -1208,6 +1220,7 @@ async function openFloating(){
 }
 $("floatBtn").addEventListener("click", openFloating);
 if (env.mode === "float") $("floatBtn").querySelector("span").textContent = "Fixar por cima de tudo";
+else $("floatBtn").querySelector("span").remove();
 
 /* ---------- ciclo ---------- */
 function renderAll(){

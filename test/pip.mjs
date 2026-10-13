@@ -1,0 +1,21 @@
+import { chromium } from "playwright";
+import http from "node:http"; import { readFileSync } from "node:fs";
+const srv = http.createServer((q,r)=>{ const f = "test/out" + q.url.split("?")[0]; try { const b = readFileSync(f); r.writeHead(200,{"content-type": f.endsWith(".js")?"text/javascript":"text/html"}); r.end(b);} catch(e){ r.writeHead(404); r.end(); } }).listen(8768);
+const browser = await chromium.launch({executablePath:"/opt/pw-browsers/chromium", args:["--headless=new"]});
+const errs=[]; const p = await browser.newPage({viewport:{width:1200,height:850}}); p.on("pageerror", e=>errs.push(e.message));
+await p.goto("http://localhost:8768/site.html"); await p.waitForTimeout(150); await p.evaluate(()=>window.__login()); await p.waitForTimeout(150);
+console.log("float btn size:", JSON.stringify(await p.evaluate(()=>{ const r=document.getElementById("floatBtn").getBoundingClientRect(); return [Math.round(r.width),Math.round(r.height)]; })));
+await p.click("#floatBtn"); await p.waitForTimeout(600);
+const q = () => p.evaluate(()=>{ const d=documentPictureInPicture.window.document; const vis=[...d.body.querySelectorAll("*")].filter(e=>e.getClientRects().length && e.offsetWidth>0 && (e.id||e.className)).map(e=>e.id||e.className.baseVal||e.className).filter(x=>typeof x==="string").slice(0,12); return {time:d.getElementById("time").textContent, btn:d.getElementById("miniToggle").title, vis}; });
+console.log("idle:", JSON.stringify(await q()));
+await p.evaluate(()=>documentPictureInPicture.window.document.getElementById("miniToggle").click()); await p.waitForTimeout(1300);
+console.log("running:", JSON.stringify(await q()));
+await p.evaluate(()=>documentPictureInPicture.window.document.getElementById("miniToggle").click()); await p.waitForTimeout(300);
+console.log("paused:", JSON.stringify(await q()));
+// render the pip look into a screenshot
+const g = await browser.newPage({viewport:{width:210,height:70}});
+await g.goto("http://localhost:8768/site.html"); await g.waitForTimeout(100); await g.evaluate(()=>window.__login()); await g.waitForTimeout(150);
+await g.evaluate(()=>document.querySelector("#controls button").click()); await g.waitForTimeout(1200);
+await g.evaluate(()=>{ const c=document.getElementById("clockPanel"); document.body.className="pip"; document.body.replaceChildren(c); });
+await g.waitForTimeout(1100); await g.screenshot({path:"test/out/pip-mini.png"});
+console.log("ERRORS:", errs.length?errs:"none"); await browser.close(); srv.close();

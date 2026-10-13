@@ -135,7 +135,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent);outline:none;
 .chip:disabled{opacity:.4;cursor:default}
 .chip.add{border-style:dashed;padding:7px 14px;color:var(--ink-3)}
 .ring{position:relative;width:min(290px,74vw);aspect-ratio:1/1;max-width:100%}
-.ring svg{width:100%;height:100%;display:block;transform:rotate(-90deg)}
+.ring > svg{width:100%;height:100%;display:block;transform:rotate(-90deg)}
 .ring .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
 .time{font-family:var(--f-body);font-variant-numeric:tabular-nums;font-size:clamp(2.4rem,9vw,3.3rem);font-weight:800;letter-spacing:-.02em;line-height:1}
 .time.paused{color:var(--ink-3)}
@@ -494,7 +494,7 @@ body.pip .chip .ci{width:15px;height:15px}
 body.pip .chip .ci svg{width:9px;height:9px}
 body.pip .chip.add{display:none}
 body.pip .ring{width:auto;aspect-ratio:auto}
-body.pip .ring svg{display:none}
+body.pip .ring > svg{display:none}
 body.pip .ring .center{position:static;gap:2px}
 body.pip .time{font-size:2.4rem}
 body.pip .ring .goal{font-size:.7rem}
@@ -527,7 +527,7 @@ body.mode-float .btn.big{padding:6px 14px;font-size:.8rem}
 body.mode-float .gate{position:static;min-height:300px}
 body.mode-float .gate-card{box-shadow:none;border:0;padding:12px 6px}
 body.mode-float .ring{width:auto;aspect-ratio:auto}
-body.mode-float .ring svg{display:none}
+body.mode-float .ring > svg{display:none}
 body.mode-float .ring .center{position:static;gap:2px}
 body.mode-float .time{font-size:2.2rem}
 body.mode-float .clock{gap:8px}
@@ -561,6 +561,24 @@ body.mode-float .mode-opts .opt-line{display:none}
 .clock .modes{margin-top:30px}
 body:is(.mode-panel,.mode-popup) .clock .modes{margin-top:24px}
 body.mode-float .clock .modes{margin-top:0}
+
+/* Flutuante: botão só com ícone e janela mínima (tempo + pausar/continuar) */
+.float-btn{padding:5px;border-radius:8px;gap:0}
+.float-btn svg{width:15px;height:15px}
+body:is(.mode-panel,.mode-popup) .float-btn{padding:4px}
+body:is(.mode-panel,.mode-popup) .float-btn svg{width:12px;height:12px}
+body.mode-float .float-btn{gap:6px;padding:7px 10px}
+.mini-toggle{display:none}
+body.pip{overflow:hidden}
+body.pip .clock{min-height:100vh;padding:4px 10px;gap:0;justify-content:center}
+body.pip .clock > :not(.ring){display:none!important}
+body.pip .ring .center{flex-direction:row;align-items:center;gap:10px}
+body.pip .ring .goal{display:none}
+body.pip .time{font-size:1.9rem;letter-spacing:-.01em}
+body.pip .mini-toggle{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;border:0;background:var(--accent);color:var(--accent-ink);cursor:pointer;flex:none;padding:0}
+body.pip .mini-toggle svg{width:12px;height:12px}
+body.pip .clock[data-state="running"] .mini-toggle{background:var(--sunk);color:var(--ink)}
+body.pip .clock[data-state="break"] .mini-toggle{background:var(--warn);color:#fff}
 </style>
 <meta name="theme-color" content="#12806D"><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icons/icon-32.png"><link rel="apple-touch-icon" href="icons/icon-180.png">
 </head>
@@ -607,7 +625,7 @@ body.mode-float .clock .modes{margin-top:0}
       <span class="mode-pill" id="modePill" hidden></span>
       <div class="ring">
         <svg viewBox="0 0 240 240" aria-hidden="true"><circle cx="120" cy="120" r="106" fill="none" stroke="var(--sunk)" stroke-width="14"/><circle class="prog" id="ringProg" cx="120" cy="120" r="106" fill="none" stroke="var(--accent)" stroke-width="14" stroke-linecap="round" stroke-dasharray="666" stroke-dashoffset="666"/></svg>
-        <div class="center"><div class="time" id="time">00:00:00</div><div class="goal" id="ringGoal"></div></div>
+        <div class="center"><div class="time" id="time">00:00:00</div><button class="mini-toggle" type="button" id="miniToggle" aria-label="Pausar ou continuar"></button><div class="goal" id="ringGoal"></div></div>
       </div>
       <div class="status" id="status"></div>
       <div class="controls" id="controls"></div>
