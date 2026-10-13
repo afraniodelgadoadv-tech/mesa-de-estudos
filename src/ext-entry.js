@@ -25,6 +25,16 @@ startApp({
   signOut: async () => { await signOut(auth); chrome.runtime.sendMessage({ type: "logout" }).catch(() => {}); },
   onAuth: cb => onAuthStateChanged(auth, cb),
   onRunning: (running, goal) => { chrome.runtime.sendMessage({ type: "running", running, goal }).catch(() => {}); },
+  // janelinha do cronômetro; dentro dela, "Fixar por cima de tudo" a deixa sempre visível
+  openFloat: async () => {
+    const { floatWin } = await chrome.storage.session.get("floatWin");
+    if (floatWin){ try { await chrome.windows.update(floatWin, { focused: true, state: "normal" }); if (mode === "popup") window.close(); return; } catch (e) {} }
+    const w = await chrome.windows.create({ url: "float.html", type: "popup", width: 300, height: 300, left: Math.max(0, screen.availWidth - 330), top: 90, focused: true });
+    await chrome.storage.session.set({ floatWin: w.id });
+    if (mode === "popup") window.close();
+  },
+  onFloatOpen: () => { if (mode === "float") chrome.windows.getCurrent(w => chrome.windows.update(w.id, { state: "minimized" })); },
+  onFloatClose: () => { if (mode === "float") chrome.windows.getCurrent(w => chrome.windows.update(w.id, { state: "normal", focused: true })); },
   openPanel: () => {
     if (chrome.sidePanel && windowId != null) { chrome.sidePanel.open({ windowId }).catch(() => chrome.tabs.create({ url: SITE_URL })); }
     else chrome.tabs.create({ url: SITE_URL });

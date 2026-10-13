@@ -7,7 +7,7 @@ console.log("SW url:", sw.url());
 const id = sw.url().split("/")[2];
 console.log("ID matches fixed:", id === "ejjpplgdkllkdomlapcmpnlliakjfabb");
 const errs=[];
-for (const pg of ["popup","sidepanel"]){
+for (const pg of ["popup","sidepanel","float"]){
   const p = await ctx.newPage(); p.on("pageerror", e=>errs.push(pg+": "+e.message)); p.on("console", m=>{ if(m.type()==="error") errs.push(pg+" console: "+m.text().slice(0,200)); });
   await p.goto(`chrome-extension://${id}/${pg}.html`); await p.waitForTimeout(2500);
   console.log(pg, "gate visible:", await p.isVisible("#gate"), "msg:", await p.textContent("#gateMsg"));

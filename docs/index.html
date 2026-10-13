@@ -473,6 +473,64 @@ body:is(.mode-panel,.mode-popup) .nb-tab{width:18px;height:18px}
 body.mode-popup{width:330px}
 body.mode-popup .main{padding:10px}
 body.mode-popup .popfoot{gap:6px}
+
+/* Botão e janela do cronômetro flutuante */
+.clock{position:relative}
+.float-btn{position:absolute;top:12px;right:12px;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line-2);background:var(--raise);color:var(--ink-2);border-radius:999px;padding:5px 10px 5px 8px;font-size:.78rem;font-weight:700;cursor:pointer}
+.float-btn:hover{color:var(--accent-2);border-color:var(--accent)}
+.float-btn svg{width:16px;height:16px}
+body:is(.mode-panel,.mode-popup) .float-btn{top:8px;right:8px;padding:3px 8px 3px 6px;font-size:.7rem}
+body:is(.mode-panel,.mode-popup) .float-btn svg{width:13px;height:13px}
+body:is(.mode-panel,.mode-popup) .clock .pick{margin-top:22px}
+.clock-away{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
+/* dentro da janela flutuante */
+body.pip{margin:0;background:var(--surface);font-size:13px;overflow:auto}
+body.pip .clock{border:0;box-shadow:none;border-radius:0;min-height:100vh;padding:10px 12px;gap:6px;justify-content:center}
+body.pip .float-btn, body.pip .goal-edit, body.pip .clock .pick .label{display:none}
+body.pip .clock:not([data-state="idle"]) .pick{display:none}
+body.pip .cats{gap:4px}
+body.pip .chip{padding:2px 8px 2px 3px;font-size:.72rem;gap:4px;border-width:1px}
+body.pip .chip .ci{width:15px;height:15px}
+body.pip .chip .ci svg{width:9px;height:9px}
+body.pip .chip.add{display:none}
+body.pip .ring{width:auto;aspect-ratio:auto}
+body.pip .ring svg{display:none}
+body.pip .ring .center{position:static;gap:2px}
+body.pip .time{font-size:2.4rem}
+body.pip .ring .goal{font-size:.7rem}
+body.pip .status{font-size:.72rem;min-height:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+body.pip .controls{gap:6px}
+body.pip .btn{padding:4px 10px;font-size:.75rem;gap:5px}
+body.pip .btn.big{padding:5px 12px;font-size:.8rem}
+body.pip .btn svg{width:12px;height:12px}
+body.pip .finish{padding:8px;gap:6px;border-radius:10px}
+body.pip .finish h3{font-size:.8rem}
+body.pip .finish .field>span{font-size:.68rem}
+body.pip .finish input{padding:4px 6px;font-size:.75rem;border-radius:6px}
+body.pip .clock[data-state="running"] .time{color:var(--ink)}
+/* janelinha da extensão (antes de fixar por cima) */
+body.mode-float{font-size:13px}
+body.mode-float .side, body.mode-float .side-col, body.mode-float .hello, body.mode-float .fab, body.mode-float .sticky, body.mode-float .popfoot{display:none!important}
+body.mode-float .app{display:block;min-height:0}
+body.mode-float .main{padding:8px;gap:8px}
+body.mode-float .panel{padding:10px;box-shadow:none;border-radius:12px}
+body.mode-float .float-btn{position:static;align-self:stretch;justify-content:center;background:var(--accent);color:var(--accent-ink);border-color:var(--accent);padding:7px 10px;font-size:.8rem}
+body.mode-float .clock .pick .label, body.mode-float .goal-edit{display:none}
+body.mode-float .ring{width:120px}
+body.mode-float .time{font-size:1.5rem}
+body.mode-float .ring .goal, body.mode-float .status{font-size:.7rem}
+body.mode-float .chip{padding:2px 8px 2px 3px;font-size:.72rem;gap:4px;border-width:1px}
+body.mode-float .chip .ci{width:15px;height:15px}
+body.mode-float .chip .ci svg{width:9px;height:9px}
+body.mode-float .btn{padding:4px 10px;font-size:.75rem}
+body.mode-float .btn.big{padding:6px 14px;font-size:.8rem}
+body.mode-float .gate{position:static;min-height:300px}
+body.mode-float .gate-card{box-shadow:none;border:0;padding:12px 6px}
+body.mode-float .ring{width:auto;aspect-ratio:auto}
+body.mode-float .ring svg{display:none}
+body.mode-float .ring .center{position:static;gap:2px}
+body.mode-float .time{font-size:2.2rem}
+body.mode-float .clock{gap:8px}
 </style>
 <meta name="theme-color" content="#12806D"><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icons/icon-32.png"><link rel="apple-touch-icon" href="icons/icon-180.png">
 </head>
@@ -503,7 +561,8 @@ body.mode-popup .popfoot{gap:6px}
 
   <!-- CRONÔMETRO -->
   <section id="view-timer" class="grid g2">
-    <div class="panel clock">
+    <div class="panel clock" id="clockPanel">
+      <button class="float-btn" type="button" id="floatBtn" title="Abrir cronômetro flutuante (fica por cima de tudo)" aria-label="Abrir cronômetro flutuante"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="19" height="15" rx="2.5"/><rect x="12" y="11" width="7" height="5.5" rx="1.2" fill="currentColor" stroke="none"/></svg><span>Flutuante</span></button>
       <div class="pick">
         <span class="label">O que você vai estudar agora?</span>
         <div class="cats" id="catPicker"></div>

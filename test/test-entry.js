@@ -6,4 +6,4 @@ window.__login = () => cb && cb(user);
 window.__logout = () => cb && cb(null);
 startApp({ mode: document.body.dataset.mode, db: {}, siteUrl: "https://example.test/", allowed: ["afraniodelgado.adv@gmail.com"],
   signIn: async () => { cb(user); }, signOut: async () => { cb(null); }, onAuth: f => { cb = f; setTimeout(() => f(null), 10); },
-  onRunning: (r) => { window.__running = r; }, openPanel: () => { window.__panel = true; } });
+  onRunning: (r) => { window.__running = r; }, openPanel: () => { window.__panel = true; }, openFloat: () => { window.__float = true; } });

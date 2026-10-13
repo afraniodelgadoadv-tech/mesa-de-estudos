@@ -2,7 +2,8 @@ import { doc, collection, onSnapshot, setDoc, deleteDoc, writeBatch, onSnapshots
 
 // env = {mode:"site"|"panel"|"popup", db, signIn, signOut, onAuth, allowed, siteUrl, onRunning?, openPanel?}
 export function startApp(env){
-const $ = id => document.getElementById(id);
+let pipWin = null; // janela flutuante (Picture-in-Picture) com o cronômetro
+const $ = id => document.getElementById(id) || (pipWin ? pipWin.document.getElementById(id) : null);
 const DEFAULT_CATS = [
   {id:"questoes", name:"Questões", color:0},
   {id:"jurisprudencia", name:"Jurisprudência", color:1},
@@ -108,7 +109,7 @@ function showTab(t){
   document.querySelectorAll("nav.tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab===t ? "true":"false"));
   ["timer","tasks","stats","exams","notes"].forEach(v => $("view-"+v).hidden = v!==t);
   document.body.classList.toggle("on-notes", t==="notes");
-  try { localStorage.setItem("mesa.tab", t); } catch(e){}
+  if (env.mode === "site" || env.mode === "panel"){ try { localStorage.setItem("mesa.tab", t); } catch(e){} }
   if (t==="stats") renderStats(); if (t==="exams") renderExams(); if (t==="notes") renderNotes(); if (t==="tasks") renderTasks();
 }
 try { const t = localStorage.getItem("mesa.tab"); if (t) showTab(t); } catch(e){}
@@ -157,6 +158,7 @@ function catIcon(c){ return el("span",{class:"ci",style:"background:"+colorOf(c)
 
 function renderTimer(){
   const r = config.running;
+  $("clockPanel").dataset.state = finishing ? "finishing" : !r ? "idle" : r.start ? "running" : "paused";
   const picker = $("catPicker"); picker.replaceChildren();
   const locked = !!r || !!finishing;
   config.categories.forEach(c => picker.append(el("button",{class:"chip",style:"--chipc:"+colorOf(c),"aria-pressed": String(selCat===c.id), disabled: locked && selCat!==c.id, onclick:()=>{ if(locked) return; selCat=c.id; renderTimer(); }}, catIcon(c), c.name)));
@@ -994,6 +996,42 @@ function importData(){
 $("logoutBtn").addEventListener("click", () => env.signOut());
 $("seeTasks").addEventListener("click", () => showTab("tasks"));
 
+/* ---------- cronômetro flutuante (fica por cima de todos os programas) ---------- */
+async function openFloating(){
+  // no popup e no painel da extensão, abre uma janelinha própria que pode virar flutuante
+  if ((env.mode === "popup" || env.mode === "panel") && env.openFloat){ env.openFloat(); return; }
+  if (pipWin){ pipWin.focus(); return; }
+  if (!("documentPictureInPicture" in window)){
+    $("status").textContent = "Este navegador não tem janela flutuante. Use o Chrome ou o Edge atualizados.";
+    return;
+  }
+  const clock = $("clockPanel");
+  let win;
+  try { win = await documentPictureInPicture.requestWindow({ width: 280, height: 210 }); }
+  catch (e){ $("status").textContent = "Não consegui abrir a janela flutuante: " + (e.message || e); return; }
+  pipWin = win;
+  [...document.styleSheets].forEach(ss => {
+    try { const st = win.document.createElement("style"); st.textContent = [...ss.cssRules].map(r => r.cssText).join("\n"); win.document.head.append(st); }
+    catch (e){ if (ss.href){ const l = win.document.createElement("link"); l.rel = "stylesheet"; l.href = ss.href; win.document.head.append(l); } }
+  });
+  win.document.title = "Cronômetro";
+  win.document.body.className = "pip " + document.body.className;
+  const back = el("div",{class:"panel clock-away"},
+    el("p",{class:"empty"},"O cronômetro está na janela flutuante."),
+    el("button",{class:"btn sm",type:"button",onclick:()=>{ if (pipWin) pipWin.close(); }},"Trazer de volta"));
+  clock.replaceWith(back);
+  win.document.body.append(clock);
+  if (env.onFloatOpen) env.onFloatOpen();
+  win.addEventListener("pagehide", () => {
+    back.replaceWith(clock); pipWin = null;
+    renderTimer();
+    if (env.onFloatClose) env.onFloatClose();
+  });
+  renderTimer();
+}
+$("floatBtn").addEventListener("click", openFloating);
+if (env.mode === "float") $("floatBtn").querySelector("span").textContent = "Fixar por cima de tudo";
+
 /* ---------- ciclo ---------- */
 function renderAll(){
   renderTimer(); renderToday(); renderHello(); renderTasksAll();
@@ -1031,10 +1069,8 @@ function showGate(text, busy){
 }
 document.body.classList.add("mode-"+env.mode, "loading");
 if (env.siteUrl && env.mode !== "site"){ document.querySelectorAll(".open-site").forEach(a => { a.href = env.siteUrl; a.hidden = false; }); }
-if (env.mode === "popup"){
-  $("popPanel").addEventListener("click", () => env.openPanel && env.openPanel());
-  if (["stats","exams","notes","tasks"].includes(localStorage.getItem("mesa.tab")||"")) showTab("timer");
-}
+if (env.mode === "popup") $("popPanel").addEventListener("click", () => env.openPanel && env.openPanel());
+if (env.mode === "popup" || env.mode === "float") showTab("timer");
 $("loginBtn").addEventListener("click", async () => {
   deniedEmail = null;
   showGate("Abrindo o login do Google…", true);

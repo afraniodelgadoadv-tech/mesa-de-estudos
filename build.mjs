@@ -81,6 +81,7 @@ writeFileSync("docs/.nojekyll", "");
 writeFileSync("extension/styles.css", styles);
 writeFileSync("extension/sidepanel.html", page({ title: "Mesa de Estudos", mode: "panel", cssHref: "styles.css", script: "app.js" }));
 writeFileSync("extension/popup.html", page({ title: "Mesa de Estudos", mode: "popup", cssHref: "styles.css", script: "app.js" }));
+writeFileSync("extension/float.html", page({ title: "Cronômetro · Mesa de Estudos", mode: "float", cssHref: "styles.css", script: "app.js" }));
 const { SITE_URL } = await import("./src/config.js");
 const site = new URL(SITE_URL);
 writeFileSync("extension/manifest.json", JSON.stringify({
