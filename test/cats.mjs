@@ -1,0 +1,17 @@
+import { chromium } from "playwright";
+import http from "node:http"; import { readFileSync } from "node:fs";
+const srv = http.createServer((q,r)=>{ const f = "test/out" + q.url.split("?")[0]; try { const b = readFileSync(f); r.writeHead(200,{"content-type": f.endsWith(".js")?"text/javascript":"text/html"}); r.end(b);} catch(e){ r.writeHead(404); r.end(); } }).listen(8772);
+const browser = await chromium.launch({executablePath:"/opt/pw-browsers/chromium"}); const errs=[];
+const p = await browser.newPage({viewport:{width:400,height:800}}); p.on("pageerror", e=>errs.push(e.message));
+await p.goto("http://localhost:8772/panel.html"); await p.waitForTimeout(100);
+await p.evaluate(()=>{ window.__docs.set("users/u1",{categories:[{id:"questoes",name:"Questões",color:0},{id:"jurisprudencia",name:"Jurisprudência",color:1},{id:"flashcards",name:"Flashcards",color:2},{id:"aula",name:"Aula",color:3},{id:"atualizacao",name:"atualização",color:4}],exams:[],dailyGoal:240,running:null}); window.__login(); });
+await p.waitForTimeout(300);
+await p.click(".chip-editbtn"); await p.waitForTimeout(100);
+await p.screenshot({path:"test/out/cats-edit.png", clip:{x:0,y:40,width:400,height:330}});
+await p.click(".chip-edit:has-text('atualização') .chip-x"); await p.waitForTimeout(100);
+await p.screenshot({path:"test/out/cats-confirm.png", clip:{x:0,y:40,width:400,height:330}});
+await p.click(".chip-confirm .cc-yes"); await p.waitForTimeout(200);
+console.log("cats:", await p.evaluate(()=>window.__docs.get("users/u1").categories.map(c=>c.name).join(", ")));
+await p.click(".chip-editbtn"); await p.waitForTimeout(100);
+console.log("chips after:", (await p.locator("#catPicker .chip").allTextContents()).join(" | "));
+console.log("ERRORS:", errs.length?errs:"none"); await browser.close(); srv.close();

@@ -582,3 +582,17 @@ body.pip .clock[data-state="running"] .mini-stop{background:var(--accent)}
 body:is(.mode-panel,.mode-popup) .pill-btn{right:36px}
 .pill-btn[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 body.mode-float .pill-btn, body.pip .pill-btn{display:none!important}
+
+/* Editar/excluir atividades */
+.chip-edit{cursor:default;padding-right:4px;border-color:var(--chipc)}
+.chip-x{all:unset;display:grid;place-items:center;width:20px;height:20px;border-radius:50%;cursor:pointer;color:var(--ink-3);font-weight:800;font-size:1rem;line-height:1;margin-left:2px}
+.chip-x:hover{background:var(--bad-soft);color:var(--bad)}
+.chip-x:disabled{opacity:.3;cursor:not-allowed;background:none;color:var(--ink-3)}
+.chip-confirm{border-color:var(--bad);background:var(--bad-soft);color:var(--ink);gap:6px;padding:5px 6px 5px 12px}
+.chip-confirm button{all:unset;cursor:pointer;font-weight:800;font-size:.8rem;padding:3px 9px;border-radius:999px}
+.chip-confirm .cc-yes{background:var(--bad);color:#fff}
+.chip-confirm .cc-no{color:var(--ink-2)}
+.chip-editbtn[aria-pressed="true"]{border-style:solid;border-color:var(--accent);color:var(--accent-2)}
+body:is(.mode-panel,.mode-popup,.mode-float) .chip-x{width:16px;height:16px;font-size:.85rem}
+body:is(.mode-panel,.mode-popup,.mode-float) .chip-confirm{font-size:.74rem;padding:3px 4px 3px 9px}
+body:is(.mode-panel,.mode-popup,.mode-float) .chip-confirm button{font-size:.7rem;padding:2px 7px}

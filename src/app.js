@@ -264,6 +264,13 @@ const SVG = {
 function svgEl(name){ const s = document.createElement("span"); s.style.display = "contents"; s.innerHTML = SVG[name] || SVG.other; return s; }
 function catIcon(c){ return el("span",{class:"ci",style:"background:"+colorOf(c)}, svgEl(SVG[c.id] ? c.id : "other")); }
 
+let editingCats = false, confirmCat = null;
+function deleteCategory(id){
+  config.categories = config.categories.filter(c => c.id !== id);
+  if (selCat === id) selCat = (config.categories[0] || {}).id;
+  if (config.lastCat === id) config.lastCat = null;
+  confirmCat = null; store.saveConfig(); renderAll();
+}
 function renderModeBar(){
   const bar = $("modeBar"), opts = $("modeOpts"), p = prefs();
   const idle = !config.running && !finishing;
@@ -299,8 +306,25 @@ function renderTimer(){
   panel.dataset.state = finishing ? "finishing" : !r ? "idle" : (ph && ph.kind==="break") ? "break" : (ph && ph.kind==="done") ? "done" : r.start ? "running" : "paused";
   const picker = $("catPicker"); picker.replaceChildren();
   const locked = !!r || !!finishing;
-  config.categories.forEach(c => picker.append(el("button",{class:"chip",style:"--chipc:"+colorOf(c),"aria-pressed": String(selCat===c.id), disabled: locked && selCat!==c.id, onclick:()=>{ if(locked) return; selCat=c.id; renderTimer(); }}, catIcon(c), c.name)));
-  if (!locked) picker.append(el("button",{class:"chip add",onclick:()=>{ $("newCatRow").hidden=false; $("newCatName").focus(); }}, "+ Nova atividade"));
+  if (locked) editingCats = false;
+  config.categories.forEach(c => {
+    if (editingCats){
+      // modo edição: cada atividade ganha um × para excluir (com confirmação)
+      const busy = config.running && config.running.cat === c.id;
+      if (confirmCat === c.id){
+        picker.append(el("span",{class:"chip chip-confirm",style:"--chipc:"+colorOf(c)}, "Excluir “"+c.name+"”?",
+          el("button",{type:"button",class:"cc-yes",onclick:()=>deleteCategory(c.id)},"Sim"),
+          el("button",{type:"button",class:"cc-no",onclick:()=>{ confirmCat = null; renderTimer(); }},"Não")));
+      } else {
+        picker.append(el("span",{class:"chip chip-edit",style:"--chipc:"+colorOf(c)}, catIcon(c), c.name,
+          el("button",{type:"button",class:"chip-x",disabled: busy || config.categories.length<=1,title: busy ? "Em uso no cronômetro agora" : config.categories.length<=1 ? "Precisa ter ao menos uma atividade" : "Excluir "+c.name,"aria-label":"Excluir "+c.name,onclick:()=>{ confirmCat = c.id; renderTimer(); }},"×")));
+      }
+      return;
+    }
+    picker.append(el("button",{class:"chip",style:"--chipc:"+colorOf(c),"aria-pressed": String(selCat===c.id), disabled: locked && selCat!==c.id, onclick:()=>{ if(locked) return; selCat=c.id; renderTimer(); }}, catIcon(c), c.name));
+  });
+  if (!locked && !editingCats) picker.append(el("button",{class:"chip add",onclick:()=>{ $("newCatRow").hidden=false; $("newCatName").focus(); }}, "+ Nova atividade"));
+  if (!locked) picker.append(el("button",{class:"chip add chip-editbtn",type:"button","aria-pressed":String(editingCats),title: editingCats ? "Terminar edição" : "Editar atividades",onclick:()=>{ editingCats = !editingCats; confirmCat = null; renderTimer(); }}, editingCats ? "Concluir" : "Editar"));
   renderModeBar();
 
   const t = $("time"), st = $("status"), ctr = $("controls"), pill = $("modePill");
