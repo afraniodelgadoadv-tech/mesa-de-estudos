@@ -110,10 +110,10 @@ function setSync(m, err){
 document.querySelectorAll("nav.tabs button").forEach(b => b.addEventListener("click", () => showTab(b.dataset.tab)));
 function showTab(t){
   document.querySelectorAll("nav.tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab===t ? "true":"false"));
-  ["timer","plan","tasks","stats","exams","notes"].forEach(v => $("view-"+v).hidden = v!==t);
+  ["timer","tasks","stats","exams","notes"].forEach(v => $("view-"+v).hidden = v!==t);
   document.body.classList.toggle("on-notes", t==="notes");
   if (env.mode === "site" || env.mode === "panel"){ try { localStorage.setItem("mesa.tab", t); } catch(e){} }
-  if (t==="stats") renderStats(); if (t==="exams") renderExams(); if (t==="notes") renderNotes(); if (t==="tasks") renderTasks(); if (t==="plan") renderPlan();
+  if (t==="stats") renderStats(); if (t==="exams") renderExams(); if (t==="notes") renderNotes(); if (t==="tasks") renderTasks();
 }
 try { const t = localStorage.getItem("mesa.tab"); if (t) showTab(t); } catch(e){}
 
@@ -190,7 +190,6 @@ async function saveFinish(){
   if (f.task && $("fTaskDone").checked){ const t = tasks.find(x=>x.id===f.task); if (t && !t.done) toggleTask(t, true); }
   finishing = null; config.running = null;
   await store.saveConfig(); await store.addSession(s);
-  if (f.subject && s.dur >= 300) addReviews(f.subject, f.subjectName, note && note !== f.subjectName ? note : "");
   renderAll();
   if (env.mode === "float" && f.auto) setTimeout(() => window.close(), 400);
 }
@@ -262,6 +261,7 @@ const SVG = {
   questoes:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
   jurisprudencia:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16M7 20h10M5 7h14M5 7l-3 6a3 3 0 0 0 6 0zM19 7l-3 6a3 3 0 0 0 6 0z"/></svg>',
   flashcards:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><rect x="3" y="7" width="13" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-3"/></svg>',
+  cal:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
   other:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5V6a2 2 0 0 1 2-2h12v15H6a2 2 0 0 0-2 2"/></svg>',
 };
 function svgEl(name){ const s = document.createElement("span"); s.style.display = "contents"; s.innerHTML = SVG[name] || SVG.other; return s; }
@@ -1065,8 +1065,8 @@ function inlineConfirm(wrap, question, action){
   });
 }
 
-/* ---------- tarefas de estudo ---------- */
-// tarefa = {id, text, cat?, due? (AAAA-MM-DD), done, created, doneAt?}
+/* ---------- tarefas: planejador com calendário ---------- */
+// tarefa = {id, text, cat?, due? (AAAA-MM-DD), time? (HH:MM), dur? (min), done, created, doneAt?, series?}
 function todayKey(){ return dayKey(Date.now()); }
 function taskDueInfo(t){
   if (!t.due) return {group:"nodate", label:"", cls:""};
@@ -1077,75 +1077,218 @@ function taskDueInfo(t){
   const d = new Date(parseDay(t.due));
   return {group:"next", label: DOW[d.getDay()]+", "+pad(d.getDate())+"/"+pad(d.getMonth()+1), cls:""};
 }
-function pendingTasks(){ return tasks.filter(t=>!t.done).sort((a,b)=>(a.due||"9999").localeCompare(b.due||"9999") || (a.created||0)-(b.created||0)); }
-function toggleTask(t, done){ const n = {...t, done, doneAt: done ? Date.now() : null}; const i = tasks.findIndex(x=>x.id===t.id); if (i>=0) tasks[i] = n; store.saveTask(n); renderTasksAll(); }
+const byTime = (a,b) => (a.time||"99:99").localeCompare(b.time||"99:99") || (a.created||0)-(b.created||0);
+function pendingTasks(){ return tasks.filter(t=>!t.done).sort((a,b)=>(a.due||"9999").localeCompare(b.due||"9999") || byTime(a,b)); }
+function tasksOn(key){ return tasks.filter(t=>t.due===key).sort((a,b)=>(a.done?1:0)-(b.done?1:0) || byTime(a,b)); }
+function saveTaskLocal(n){ const i = tasks.findIndex(x=>x.id===n.id); if (i>=0) tasks[i] = n; else tasks.push(n); store.saveTask(n); }
+function toggleTask(t, done){ saveTaskLocal({...t, done, doneAt: done ? Date.now() : null}); renderTasksAll(); }
+function moveTask(id, due){ const t = tasks.find(x=>x.id===id); if (!t || (t.due||"") === (due||"")) return; const n = {...t}; if (due) n.due = due; else delete n.due; saveTaskLocal(n); renderTasksAll(); }
+function deleteTask(id){ tasks = tasks.filter(x=>x.id!==id); store.delTask(id); renderTasksAll(); }
 function startTask(t){
   if (config.running || finishing) return;
   if (t.cat && config.categories.some(c=>c.id===t.cat)) selCat = t.cat;
   showTab("timer");
   startTimer(t);
 }
-function addTask(text, cat, due){
+function addTask(text, cat, due, extra){
   text = (text||"").trim(); if (!text) return false;
-  const t = {id: uid(), text, done:false, created: Date.now()};
+  const t = {id: uid(), text, done:false, created: Date.now(), ...(extra||{})};
   if (cat) t.cat = cat; if (due) t.due = due;
-  tasks.push(t); store.saveTask(t); renderTasksAll(); return true;
+  Object.keys(t).forEach(k => (t[k]===undefined || t[k]==="" || t[k]===null) && delete t[k]);
+  tasks.push(t); store.saveTask(t); return true;
 }
-function taskItem(t){
+// repetição: cria as próximas ocorrências de uma vez
+function repeatDates(start, rule){
+  const d0 = new Date(parseDay(start)), out = [start];
+  const push = d => out.push(dayKey(d.getTime()));
+  if (rule === "daily") for (let i = 1; i < 30; i++){ const d = new Date(d0); d.setDate(d0.getDate()+i); push(d); }
+  if (rule === "weekdays") for (let i = 1; out.length < 20 && i < 40; i++){ const d = new Date(d0); d.setDate(d0.getDate()+i); if (d.getDay()%6) push(d); }
+  if (rule === "weekly") for (let i = 1; i < 8; i++){ const d = new Date(d0); d.setDate(d0.getDate()+7*i); push(d); }
+  return out;
+}
+function fmtDurMin(m){ return m >= 60 ? Math.floor(m/60)+"h"+(m%60 ? pad(m%60) : "") : m+"min"; }
+function taskItem(t, opts){
+  opts = opts || {};
   const info = taskDueInfo(t), c = t.cat ? catById(t.cat) : null;
-  const id = "tk-"+t.id;
+  const id = "tk-"+(opts.prefix||"")+t.id;
   const canStart = !t.done && !config.running && !finishing;
-  return el("li",{class:"task"+(t.done?" done":"")},
-    el("input",{type:"checkbox",id,checked:!!t.done,onchange:e=>toggleTask(t, e.target.checked)}),
-    el("label",{for:id,class:"t-main"},
-      el("span",{class:"t-text"}, t.text),
-      (c || info.label) ? el("span",{class:"t-meta"},
-        c ? el("span",{class:"t-cat"}, el("i",{style:"background:"+colorOf(c)}), c.name) : null,
-        info.label && !t.done ? el("span",{class:"t-due "+info.cls}, info.label) : null) : null),
-    canStart ? el("button",{class:"ibtn t-play",type:"button",title:"Começar a estudar esta tarefa","aria-label":"Começar a estudar: "+t.text,onclick:()=>startTask(t)}, svgEl("play")) : null,
-    el("button",{class:"x",type:"button",title:"Apagar tarefa","aria-label":"Apagar tarefa "+t.text,onclick:()=>{ tasks = tasks.filter(x=>x.id!==t.id); store.delTask(t.id); renderTasksAll(); }},"×"));
+  const li = el("li",{class:"task"+(t.done?" done":""),draggable: opts.drag ? "true" : null, "data-id": t.id, style: c ? "--tc:"+colorOf(c) : null});
+  if (opts.drag) li.addEventListener("dragstart", e => { e.dataTransfer.setData("text/plain", "task:"+t.id); e.dataTransfer.effectAllowed = "move"; li.classList.add("dragging"); });
+  if (opts.drag) li.addEventListener("dragend", () => li.classList.remove("dragging"));
+  const meta = [];
+  if (t.time) meta.push(el("span",{class:"t-time num"}, t.time));
+  if (t.dur) meta.push(el("span",{class:"t-dur"}, fmtDurMin(t.dur)));
+  if (c) meta.push(el("span",{class:"t-cat"}, el("i",{style:"background:"+colorOf(c)}), c.name));
+  if (opts.showDue && info.label && !t.done) meta.push(el("span",{class:"t-due "+info.cls}, info.label));
+  const text = el("span",{class:"t-text"}, t.text);
+  const main = el("div",{class:"t-main"}, text, meta.length ? el("span",{class:"t-meta"}, ...meta) : null);
+  if (opts.edit){
+    text.title = "Clique para editar";
+    text.addEventListener("click", () => {
+      const inp = el("input",{type:"text",class:"t-edit",value:t.text,maxlength:"120","aria-label":"Editar tarefa"});
+      const save = () => { const v = inp.value.trim(); if (v && v !== t.text) saveTaskLocal({...t, text:v}); renderTasksAll(); };
+      inp.addEventListener("keydown", e => { if (e.key==="Enter") save(); if (e.key==="Escape") renderTasksAll(); });
+      inp.addEventListener("blur", save);
+      text.replaceWith(inp); inp.focus(); inp.select();
+    });
+  }
+  const tools = el("span",{class:"t-tools"});
+  if (canStart) tools.append(el("button",{class:"ibtn t-play",type:"button",title:"Estudar agora com o cronômetro","aria-label":"Começar a estudar: "+t.text,onclick:()=>startTask(t)}, svgEl("play")));
+  if (opts.move){
+    const di = el("input",{type:"date",class:"t-date",value:t.due||"","aria-label":"Mudar o dia da tarefa",title:"Mudar o dia",onchange:e=>moveTask(t.id, e.target.value)});
+    tools.append(el("label",{class:"ibtn t-cal",title:"Mudar o dia"}, svgEl("cal"), di));
+  }
+  tools.append(el("button",{class:"x",type:"button",title:"Apagar tarefa","aria-label":"Apagar tarefa "+t.text,onclick:()=>deleteTask(t.id)},"×"));
+  li.append(el("input",{type:"checkbox",id,checked:!!t.done,"aria-label":"Concluir: "+t.text,onchange:e=>toggleTask(t, e.target.checked)}), main, tools);
+  return li;
 }
 function fillTaskCats(sel){
   const v = sel.value;
   sel.replaceChildren(el("option",{value:""},"Sem atividade"), ...config.categories.map(c=>el("option",{value:c.id}, c.name)));
   if ([...sel.options].some(o=>o.value===v)) sel.value = v;
 }
+// soltar tarefas arrastadas num dia (ou na caixa "sem data")
+function dropZone(node, due){
+  node.addEventListener("dragover", e => { if ([...e.dataTransfer.types].includes("text/plain")){ e.preventDefault(); node.classList.add("drop"); } });
+  node.addEventListener("dragleave", () => node.classList.remove("drop"));
+  node.addEventListener("drop", e => { e.preventDefault(); node.classList.remove("drop"); const v = e.dataTransfer.getData("text/plain"); if (v.startsWith("task:")) moveTask(v.slice(5), due); });
+}
+
+/* estado da tela */
+let tView = "month", tSel = null, tCursor = null;
+function tSelected(){ return tSel || todayKey(); }
 function renderTasks(){
   if ($("view-tasks").hidden) return;
+  if (!tCursor){ const d = new Date(); d.setDate(1); tCursor = d; }
+  document.querySelectorAll("#tView button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v===tView)));
+  $("view-tasks").dataset.v = tView;
+  renderTaskSummary();
+  if (tView === "month") renderTaskMonth(); else renderTaskWeek();
+  renderTaskDay();
+  renderTaskSide();
+}
+function renderTaskSummary(){
+  const ws = new Date(startOfDay(Date.now())); ws.setDate(ws.getDate() - ws.getDay());
+  const keys = Array.from({length:7},(_,i)=>{ const d = new Date(ws); d.setDate(ws.getDate()+i); return dayKey(d.getTime()); });
+  const week = tasks.filter(t => keys.includes(t.due));
+  const done = week.filter(t=>t.done).length;
+  const late = tasks.filter(t => !t.done && taskDueInfo(t).group==="late").length;
+  const box = $("tSummary"); box.replaceChildren(...[
+    el("span",{class:"ts"}, el("b",{class:"num"}, done+"/"+week.length), " da semana"),
+    el("span",{class:"ts-bar"}, el("i",{style:"width:"+(week.length ? done/week.length*100 : 0).toFixed(0)+"%"})),
+    late ? el("span",{class:"ts late"}, el("b",{class:"num"}, String(late)), late===1?" atrasada":" atrasadas") : null].filter(Boolean));
+}
+function calTitle(){
+  if (tView === "month") return MESES[tCursor.getMonth()].charAt(0).toUpperCase()+MESES[tCursor.getMonth()].slice(1)+" de "+tCursor.getFullYear();
+  const s = weekStartOf(parseDay(tSelected())), e = new Date(s); e.setDate(s.getDate()+6);
+  return pad(s.getDate())+"/"+pad(s.getMonth()+1)+" a "+pad(e.getDate())+"/"+pad(e.getMonth()+1)+"/"+e.getFullYear();
+}
+function weekStartOf(ms){ const d = new Date(startOfDay(ms)); d.setDate(d.getDate() - d.getDay()); return d; }
+function examMarks(){ const m = new Map(); allEvents().forEach(ev => { const a = m.get(ev.date)||[]; a.push(ev); m.set(ev.date, a); }); return m; }
+function renderTaskMonth(){
+  $("tTitle").textContent = calTitle();
+  const grid = $("tCal"); grid.replaceChildren(...DOW.map(d=>el("div",{class:"dow"},d)));
+  const y = tCursor.getFullYear(), m = tCursor.getMonth(), first = new Date(y,m,1).getDay(), n = new Date(y,m+1,0).getDate();
+  const today = todayKey(), sel = tSelected(), marks = examMarks();
+  for (let i=0;i<first;i++) grid.append(el("div",{class:"tc out"}));
+  for (let d=1; d<=n; d++){
+    const k = y+"-"+pad(m+1)+"-"+pad(d), list = tasksOn(k), evs = marks.get(k)||[];
+    const pend = list.filter(t=>!t.done).length, doneN = list.length - pend;
+    const cell = el("button",{type:"button",class:"tc"+(k===today?" today":"")+(k===sel?" sel":"")+(k<today && pend ? " late":""),"aria-label":d+" de "+MESES[m]+": "+list.length+" tarefas",onclick:()=>{ tSel = k; renderTasks(); }},
+      el("span",{class:"tn num"}, d),
+      evs.length ? el("span",{class:"tev",title:evs.map(e=>e.label+" · "+e.exam.name).join("\n"),style:"background:"+EV[evs[0].type].color}) : null);
+    list.slice(0,3).forEach(t => { const c = t.cat ? catById(t.cat) : null; cell.append(el("span",{class:"tchip"+(t.done?" done":""),style: c ? "--tc:"+colorOf(c) : null}, (t.time ? t.time+" " : "")+t.text)); });
+    if (list.length > 3) cell.append(el("span",{class:"tmore"}, "+"+(list.length-3)));
+    if (list.length && doneN === list.length) cell.classList.add("alldone");
+    dropZone(cell, k);
+    grid.append(cell);
+  }
+}
+function renderTaskWeek(){
+  $("tTitle").textContent = calTitle();
+  const board = $("tWeek"); board.replaceChildren();
+  const s = weekStartOf(parseDay(tSelected())), today = todayKey(), marks = examMarks();
+  for (let i=0;i<7;i++){
+    const d = new Date(s); d.setDate(s.getDate()+i); const k = dayKey(d.getTime());
+    const list = tasksOn(k), mins = list.filter(t=>!t.done).reduce((a,t)=>a+(t.dur||0),0), evs = marks.get(k)||[];
+    const col = el("div",{class:"wcol"+(k===today?" today":"")+(k===tSelected()?" sel":"")},
+      el("button",{type:"button",class:"wch",onclick:()=>{ tSel = k; renderTasks(); }}, el("b",{}, DOW[d.getDay()]), el("span",{class:"num"}, pad(d.getDate())+"/"+pad(d.getMonth()+1)), mins ? el("small",{}, fmtDurMin(mins)) : null),
+      ...evs.map(ev => el("span",{class:"wev",style:"--ec:"+EV[ev.type].color}, ev.label+" · "+ev.exam.name)),
+      el("ul",{class:"tasks"}, ...list.map(t => taskItem(t, {drag:true, prefix:"w"}))));
+    const q = el("input",{type:"text",class:"wadd",placeholder:"+ tarefa",maxlength:"120","aria-label":"Nova tarefa em "+DOW_LONG[d.getDay()]});
+    q.addEventListener("keydown", e => { if (e.key==="Enter" && addTask(q.value, null, k)){ renderTasksAll(); const n = $("view-tasks").querySelectorAll(".wadd")[i]; if (n) n.focus(); } });
+    col.append(q);
+    dropZone(col, k);
+    board.append(col);
+  }
+}
+const DOW_LONG = ["domingo","segunda-feira","terça-feira","quarta-feira","quinta-feira","sexta-feira","sábado"];
+function renderTaskDay(){
+  const k = tSelected(), d = new Date(parseDay(k)), list = tasksOn(k);
+  const rel = relDays(k);
+  $("tDayTitle").textContent = DOW_LONG[d.getDay()].charAt(0).toUpperCase()+DOW_LONG[d.getDay()].slice(1)+", "+d.getDate()+" de "+MESES[d.getMonth()];
+  const pend = list.filter(t=>!t.done), mins = pend.reduce((a,t)=>a+(t.dur||0),0);
+  $("tDaySub").textContent = (rel==="hoje"||rel==="amanhã"||rel==="ontem" ? rel.charAt(0).toUpperCase()+rel.slice(1)+" · " : "")
+    + (list.length ? pend.length+" a fazer"+(mins ? " ("+fmtDurMin(mins)+" planejados)" : "")+" · "+(list.length-pend.length)+" feita"+(list.length-pend.length===1?"":"s") : "Nenhuma tarefa neste dia");
+  const evs = examMarks().get(k)||[];
+  const box = $("tDayList"); box.replaceChildren(...evs.map(ev => el("div",{class:"day-ev",style:"--ec:"+EV[ev.type].color}, el("b",{}, ev.label), " · "+ev.exam.name)));
+  if (list.length) box.append(el("ul",{class:"tasks"}, ...list.map(t => taskItem(t, {drag:true, edit:true, move:true, prefix:"d"}))));
+  else box.append(el("p",{class:"empty"}, "Nada planejado. Adicione abaixo o que você quer cumprir neste dia."));
   fillTaskCats($("tCat"));
-  const box = $("taskList"); box.replaceChildren();
-  const pend = pendingTasks();
-  const groups = [["late","Atrasadas"],["today","Hoje"],["next","Próximos dias"],["nodate","Sem data"]];
-  if (!pend.length) box.append(el("p",{class:"empty"},"Nenhuma tarefa pendente. Anote acima o que você quer estudar."));
-  groups.forEach(([g,label]) => {
-    const list = pend.filter(t=>taskDueInfo(t).group===g); if (!list.length) return;
-    box.append(el("div",{class:"t-group"}, el("span",{class:"label"+(g==="late"?" late":"")}, label+" · "+list.length), el("ul",{class:"tasks"}, ...list.map(taskItem))));
-  });
-  const done = tasks.filter(t=>t.done).sort((a,b)=>(b.doneAt||0)-(a.doneAt||0));
-  const db = $("taskDone"); db.replaceChildren();
-  if (!done.length){ db.append(el("p",{class:"empty"},"As tarefas concluídas aparecem aqui.")); return; }
-  db.append(el("ul",{class:"tasks"}, ...done.slice(0,20).map(taskItem)));
-  const wrap = el("span",{class:"confirm"}, el("button",{class:"btn ghost sm danger",type:"button"},"Limpar concluídas"));
-  inlineConfirm(wrap, "Apagar "+done.length+(done.length===1?" tarefa concluída?":" tarefas concluídas?"), () => { done.forEach(t=>store.delTask(t.id)); tasks = tasks.filter(t=>!t.done); renderTasksAll(); });
-  db.append(wrap);
+  if (!$("tAddForm").contains(document.activeElement)) $("tDue").value = k;
+}
+function renderTaskSide(){
+  const late = tasks.filter(t => !t.done && taskDueInfo(t).group==="late").sort((a,b)=>a.due.localeCompare(b.due));
+  const lb = $("tLate"); lb.replaceChildren();
+  $("tLatePanel").hidden = !late.length;
+  if (late.length){
+    lb.append(el("ul",{class:"tasks"}, ...late.slice(0,12).map(t => taskItem(t, {drag:true, move:true, showDue:true, prefix:"l"}))),
+      el("button",{class:"btn sm",type:"button",onclick:()=>{ const k = todayKey(); late.forEach(t => saveTaskLocal({...t, due:k})); renderTasksAll(); }}, "Trazer todas para hoje"));
+  }
+  const inbox = tasks.filter(t => !t.due && !t.done).sort((a,b)=>(a.created||0)-(b.created||0));
+  const ib = $("tInbox"); ib.replaceChildren();
+  if (inbox.length) ib.append(el("ul",{class:"tasks"}, ...inbox.map(t => taskItem(t, {drag:true, move:true, prefix:"i"}))));
+  else ib.append(el("p",{class:"empty"}, "Ideias e tarefas sem dia ficam aqui. Arraste para o calendário quando decidir."));
+  const done = tasks.filter(t=>t.done);
+  const cl = $("tClean"); cl.replaceChildren();
+  if (done.length){
+    const wrap = el("span",{class:"confirm"}, el("button",{class:"btn ghost sm",type:"button"},"Apagar "+done.length+(done.length===1?" concluída":" concluídas")));
+    inlineConfirm(wrap, "Apagar todas as concluídas?", () => { done.forEach(t=>store.delTask(t.id)); tasks = tasks.filter(t=>!t.done); renderTasksAll(); });
+    cl.append(wrap);
+  }
 }
 function renderTodayTasks(){
   const box = $("todayTasks"); if (!box) return; box.replaceChildren();
-  const list = pendingTasks().filter(t => { const g = taskDueInfo(t).group; return g==="late"||g==="today"||g==="nodate"; });
-  if (!list.length) box.append(el("p",{class:"empty"}, tasks.some(t=>!t.done) ? "Nada para hoje. As próximas estão na aba Tarefas." : "Anote abaixo o que você quer estudar hoje."));
-  else box.append(el("ul",{class:"tasks"}, ...list.slice(0,6).map(taskItem)));
+  const k = todayKey();
+  const list = tasks.filter(t => !t.done && (t.due === k || (t.due && t.due < k))).sort((a,b)=>(a.due||"").localeCompare(b.due||"") || byTime(a,b));
+  if (!list.length) box.append(el("p",{class:"empty"}, tasks.some(t=>!t.done) ? "Nada para hoje. As próximas estão na aba Tarefas." : "Anote abaixo o que você quer cumprir hoje."));
+  else box.append(el("ul",{class:"tasks"}, ...list.slice(0,6).map(t => taskItem(t, {showDue:true, prefix:"h"}))));
   if (list.length > 6) box.append(el("button",{class:"btn ghost sm",type:"button",onclick:()=>showTab("tasks")},"Ver todas ("+list.length+")"));
 }
 function renderTasksAll(){ renderTasks(); renderTodayTasks(); }
-$("taskForm").addEventListener("submit", e => {
+
+/* controles */
+document.querySelectorAll("#tView button").forEach(b => b.addEventListener("click", () => { tView = b.dataset.v; renderTasks(); }));
+$("tPrev").addEventListener("click", () => { if (tView==="month"){ tCursor = new Date(tCursor.getFullYear(), tCursor.getMonth()-1, 1); } else { const d = new Date(parseDay(tSelected())); d.setDate(d.getDate()-7); tSel = dayKey(d.getTime()); } renderTasks(); });
+$("tNext").addEventListener("click", () => { if (tView==="month"){ tCursor = new Date(tCursor.getFullYear(), tCursor.getMonth()+1, 1); } else { const d = new Date(parseDay(tSelected())); d.setDate(d.getDate()+7); tSel = dayKey(d.getTime()); } renderTasks(); });
+$("tToday").addEventListener("click", () => { tSel = todayKey(); const d = new Date(); d.setDate(1); tCursor = d; renderTasks(); });
+dropZone($("tInboxPanel"), "");
+$("tAddForm").addEventListener("submit", e => {
   e.preventDefault();
-  if (addTask($("tText").value, $("tCat").value, $("tDue").value)){ $("tText").value = ""; $("tText").focus(); }
+  const text = $("tText").value, due = $("tDue").value, rule = $("tRepeat").value;
+  const extra = {time: $("tTime").value || undefined, dur: parseInt($("tDur").value,10) || undefined};
+  const dates = due && rule ? repeatDates(due, rule) : [due];
+  const series = dates.length > 1 ? uid() : undefined;
+  let ok = false; dates.forEach(d => { ok = addTask(text, $("tCat").value, d, {...extra, series}) || ok; });
+  if (ok){
+    $("tText").value = ""; $("tTime").value = ""; $("tRepeat").value = "";
+    $("tAddMsg").textContent = dates.length > 1 ? dates.length+" tarefas criadas." : "";
+    if (due){ tSel = due; const dd = new Date(parseDay(due)); tCursor = new Date(dd.getFullYear(), dd.getMonth(), 1); }
+    renderTasksAll(); $("tText").focus();
+  }
 });
-document.querySelectorAll("[data-due]").forEach(b => b.addEventListener("click", () => {
-  const d = new Date(); d.setDate(d.getDate() + Number(b.dataset.due)); $("tDue").value = dayKey(d.getTime());
-}));
 $("quickTask").addEventListener("submit", e => {
-  e.preventDefault(); if (addTask($("qtText").value, null, todayKey())) $("qtText").value = "";
+  e.preventDefault(); if (addTask($("qtText").value, null, todayKey())){ $("qtText").value = ""; renderTasksAll(); }
 });
 
 /* ---------- horários de estudo (distribuição por hora do dia) ---------- */
@@ -1265,223 +1408,11 @@ if (env.pill && env.mode !== "float"){
   if (env.pill.onChange) env.pill.onChange(on => pb.setAttribute("aria-pressed", String(!!on)));
 }
 
-/* ---------- cronograma: ciclo de estudos, semana sugerida, revisões e projeção até a prova ---------- */
-// plan = {days:[h dom..sáb], blockMin, examId, reviews, subjects:[{id,name,weight 1-3,level 1-5,color}], cycle:{startedAt, round}}
-const WEEK_ORDER = [1,2,3,4,5,6,0]; // seg → dom
-const DOW_FULL = ["Domingo","Segunda","Terça","Quarta","Quinta","Sexta","Sábado"];
-const SUBJ_COLORS = 12;
-const PRESET_DPEPB = [
-  ["Língua Portuguesa",1,3],["Legislação da Defensoria",1,3],["Conhecimentos Jurídicos e Institucionais",1,3],
-  ["Direito Constitucional",2,3],["Direito Administrativo",2,3],["Direito Civil",2,3],["Direito Processual Civil",2,3],
-  ["Direito Penal",2,3],["Direito Processual Penal",2,3],["Direito do Consumidor",2,3],["Direitos Humanos",2,3],
-];
-function plan(){
-  const p = config.plan || {};
-  return { days: Array.isArray(p.days) && p.days.length===7 ? p.days.slice() : [0,3,3,3,3,3,2], blockMin: p.blockMin || 60, examId: p.examId || "",
-           reviews: p.reviews !== false, subjects: (p.subjects||[]).map(s=>({...s})), cycle: p.cycle ? {...p.cycle} : {startedAt: Date.now(), round: 1} };
-}
-function setPlan(patch){ config.plan = {...plan(), ...patch}; store.saveConfig(); renderPlan(); }
-const subjColor = s => "var(--sc"+((s.color||0)%SUBJ_COLORS)+")";
-const weeklyHours = p => p.days.reduce((a,h)=>a+(+h||0),0);
-// quantos blocos cada matéria recebe no ciclo: peso do edital × quanto falta dominar
-function allocate(p){
-  const subs = p.subjects; if (!subs.length) return [];
-  const total = Math.max(subs.length, Math.round(weeklyHours(p)*60 / p.blockMin));
-  const score = subs.map(s => (s.weight||1) * (6 - (s.level||3)));
-  const sum = score.reduce((a,b)=>a+b,0) || 1;
-  const raw = score.map(x => total * x / sum);
-  const blocks = raw.map(x => Math.max(1, Math.floor(x)));
-  let left = total - blocks.reduce((a,b)=>a+b,0);
-  const order = raw.map((x,i)=>[x - blocks[i], i]).sort((a,b)=>b[0]-a[0]);
-  for (let k = 0; left > 0 && k < order.length*3; k++){ blocks[order[k % order.length][1]]++; left--; }
-  return subs.map((s,i)=>({...s, blocks: blocks[i], minutes: blocks[i]*p.blockMin}));
-}
-// ordem do ciclo intercalando matérias (nunca a mesma duas vezes seguidas, se der)
-function cycleSequence(alloc){
-  const used = alloc.map(()=>0), seq = []; let last = -1;
-  const total = alloc.reduce((a,s)=>a+s.blocks,0);
-  for (let n = 0; n < total; n++){
-    let best = -1, bestScore = -1;
-    alloc.forEach((s,i) => { if (used[i] >= s.blocks) return; const sc = (s.blocks - used[i]) / s.blocks + s.blocks*0.001 + (i===last ? -1 : 0); if (sc > bestScore){ bestScore = sc; best = i; } });
-    used[best]++; seq.push(alloc[best].id); last = best;
-  }
-  return seq;
-}
-function cycleDone(p){ // minutos estudados por matéria desde o início do ciclo
-  const m = {}; sessions.forEach(s => { if (s.subject && s.start >= (p.cycle.startedAt||0)) m[s.subject] = (m[s.subject]||0) + (s.dur||0)/60; });
-  const r = config.running; if (r && r.subject && !finishing) m[r.subject] = (m[r.subject]||0) + elapsed()/60;
-  return m;
-}
-function nextBlocks(p, alloc, count){ // próximos blocos ainda não cumpridos, na ordem do ciclo
-  const seq = cycleSequence(alloc), done = cycleDone(p), budget = {...done}, out = [];
-  for (const id of seq){ if ((budget[id]||0) >= p.blockMin - 1){ budget[id] -= p.blockMin; continue; } out.push(id); if (out.length >= count) break; }
-  return out;
-}
-function studyNow(subjectId){
-  const p = plan(), s = p.subjects.find(x=>x.id===subjectId); if (!s || config.running || finishing) return;
-  showTab("timer");
-  startTimer({ subject: s.id, text: s.name });
-}
-function addReviews(subjectId, subjectName, note){
-  if (!plan().reviews) return;
-  [1,7,30].forEach(d => {
-    const due = new Date(); due.setDate(due.getDate()+d); const key = dayKey(due.getTime());
-    if (tasks.some(t => !t.done && t.review === subjectId && t.due === key)) return;
-    addTask("Revisar "+subjectName+(note ? " — "+note.slice(0,60) : "")+" ("+(d===1?"24h":d+" dias")+")", null, key);
-    const t = tasks[tasks.length-1]; if (t){ t.review = subjectId; store.saveTask(t); }
-  });
-}
-
-/* tela */
-let planEditing = false;
-function renderPlan(){
-  const v = $("view-plan"); if (!v || v.hidden) return;
-  const p = plan(), alloc = allocate(p), wh = weeklyHours(p);
-  const done = cycleDone(p);
-  // ajustes (não redesenha enquanto você digita)
-  const box = $("planSettings");
-  if (!box.contains(document.activeElement)){
-    box.replaceChildren(
-      el("div",{class:"stack",style:"gap:6px"}, el("span",{class:"label"},"Horas disponíveis por dia"),
-        el("div",{class:"days-in"}, ...WEEK_ORDER.map(d => el("label",{class:"day-in"}, el("span",{}, DOW[d]),
-          el("input",{type:"number",min:"0",max:"16",step:"0.5",value:String(p.days[d]||0),"aria-label":"Horas na "+DOW_FULL[d],onchange:e=>{ const days = plan().days; days[d] = Math.max(0, Math.min(16, parseFloat(e.target.value)||0)); setPlan({days}); }}))))),
-      el("div",{class:"row"},
-        el("label",{class:"field",style:"flex:1 1 130px"}, el("span",{},"Tamanho do bloco"),
-          el("select",{id:"planBlock",onchange:e=>setPlan({blockMin:+e.target.value})}, ...[30,45,50,60,90,120].map(m=>el("option",{value:String(m),selected:p.blockMin===m}, fmtGoal(m))))),
-        el("label",{class:"field",style:"flex:2 1 180px"}, el("span",{},"Prova alvo"),
-          el("select",{id:"planExam",onchange:e=>setPlan({examId:e.target.value})}, el("option",{value:""},"Nenhuma"), ...upcomingExams().map(e=>el("option",{value:e.id,selected:p.examId===e.id}, e.name))))),
-      el("label",{class:"check-line"}, el("input",{type:"checkbox",checked:p.reviews,onchange:e=>setPlan({reviews:e.target.checked})}), "Criar revisões automáticas (24h, 7 e 30 dias) ao estudar uma matéria do ciclo"));
-  }
-  $("planWeekly").textContent = wh ? fmtGoal(Math.round(wh*60))+" por semana" : "defina suas horas";
-  renderPlanSubjects(p, alloc, done);
-  renderCycle(p, alloc, done);
-  renderWeek(p, alloc);
-  renderProjection(p, alloc);
-}
-function renderPlanSubjects(p, alloc, done){
-  const list = $("planSubjects");
-  if (list.contains(document.activeElement) && document.activeElement.tagName === "INPUT") return;
-  list.replaceChildren();
-  if (!alloc.length){
-    list.append(el("div",{class:"empty-plan"}, el("p",{class:"empty"},"Cadastre as matérias do seu edital. O peso indica o quanto ela vale na prova; o domínio, o quanto você já sabe. O ciclo dá mais tempo a quem pesa mais e você domina menos."),
-      el("button",{class:"btn sm",type:"button",onclick:()=>loadPreset()},"Usar as matérias da DPE-PB (Analista Jurídico)")));
-  }
-  alloc.forEach(s => {
-    const pct = Math.min(100, (done[s.id]||0) / s.minutes * 100);
-    const dots = (n, val, on, label) => el("span",{class:"dots",role:"group","aria-label":label}, ...Array.from({length:n},(_,i)=>el("button",{type:"button",class:"d"+(i<val?" on":""),title:label+": "+(i+1),"aria-label":label+" "+(i+1),onclick:()=>on(i+1)})));
-    const upd = ch => setPlan({subjects: plan().subjects.map(x => x.id===s.id ? {...x, ...ch} : x)});
-    const del = el("span",{class:"confirm"}, el("button",{class:"x",type:"button","aria-label":"Excluir "+s.name,title:"Excluir matéria"},"×"));
-    inlineConfirm(del, "Excluir?", () => setPlan({subjects: plan().subjects.filter(x=>x.id!==s.id)}));
-    list.append(el("div",{class:"subj"},
-      el("span",{class:"sdot",style:"background:"+subjColor(s)}),
-      el("input",{type:"text",class:"sname",value:s.name,maxlength:"60","aria-label":"Nome da matéria",onchange:e=>{ const n = e.target.value.trim(); if (n) upd({name:n}); }}),
-      el("span",{class:"smeta"}, el("span",{class:"slabel"},"peso"), dots(3, s.weight||1, w=>upd({weight:w}), "Peso"), el("span",{class:"slabel"},"domínio"), dots(5, s.level||3, l=>upd({level:l}), "Domínio")),
-      el("span",{class:"shours num",title:"Tempo no ciclo"}, fmtGoal(s.minutes)),
-      el("span",{class:"sbar",title:Math.round(pct)+"% do ciclo"}, el("i",{style:"width:"+pct.toFixed(0)+"%;background:"+subjColor(s)})),
-      el("button",{class:"ibtn splay",type:"button",title:"Estudar agora","aria-label":"Estudar "+s.name+" agora",disabled:!!config.running||!!finishing,onclick:()=>studyNow(s.id)}, svgEl("play")),
-      del));
-  });
-}
-function loadPreset(){
-  const subs = PRESET_DPEPB.map(([name,weight,level],i)=>({id:uid()+i, name, weight, level, color:i}));
-  const ex = upcomingExams().find(e => /dpe|defensoria/i.test(e.name));
-  setPlan({subjects: subs, examId: ex ? ex.id : plan().examId, cycle:{startedAt: Date.now(), round: 1}});
-}
-$("planAdd").addEventListener("submit", e => {
-  e.preventDefault(); const n = $("planNew").value.trim(); if (!n) return;
-  const p = plan(); const used = new Set(p.subjects.map(s=>s.color)); let color = 0; while (used.has(color) && color < SUBJ_COLORS-1) color++;
-  p.subjects.push({id:uid(), name:n, weight:2, level:3, color}); $("planNew").value = "";
-  setPlan({subjects: p.subjects}); $("planNew").focus();
-});
-function renderCycle(p, alloc, done){
-  const svg = $("cycleRing"), info = $("cycleInfo");
-  svg.replaceChildren(); info.replaceChildren();
-  const total = alloc.reduce((a,s)=>a+s.minutes,0);
-  const ns = "http://www.w3.org/2000/svg", C = 2*Math.PI*86;
-  const add = (tag, a) => { const e = document.createElementNS(ns, tag); for (const k in a) e.setAttribute(k, a[k]); svg.append(e); return e; };
-  add("circle",{cx:100,cy:100,r:86,fill:"none",stroke:"var(--sunk)","stroke-width":22});
-  let off = 0, doneTotal = 0;
-  alloc.forEach(s => {
-    const frac = s.minutes/total, len = frac*C, gap = Math.min(2, len*0.2);
-    const got = Math.min(s.minutes, done[s.id]||0); doneTotal += got;
-    add("circle",{cx:100,cy:100,r:86,fill:"none",stroke:subjColor(s),"stroke-opacity":".25","stroke-width":22,"stroke-dasharray":`${Math.max(0,len-gap)} ${C}`,"stroke-dashoffset":String(-off),transform:"rotate(-90 100 100)"}).append(Object.assign(document.createElementNS(ns,"title"),{textContent:s.name+": "+fmtGoal(s.minutes)}));
-    const glen = (got/s.minutes)*Math.max(0,len-gap);
-    if (glen > 0) add("circle",{cx:100,cy:100,r:86,fill:"none",stroke:subjColor(s),"stroke-width":22,"stroke-dasharray":`${glen} ${C}`,"stroke-dashoffset":String(-off),transform:"rotate(-90 100 100)"});
-    off += len;
-  });
-  const pct = total ? Math.round(doneTotal/total*100) : 0;
-  $("cycleCenter").replaceChildren(el("b",{}, pct+"%"), el("span",{}, "ciclo "+(p.cycle.round||1)));
-  if (!alloc.length){ info.append(el("p",{class:"empty"},"Seu ciclo aparece aqui quando você cadastrar as matérias.")); return; }
-  if (pct >= 100){
-    info.append(el("div",{class:"cycle-done"}, el("b",{},"Ciclo "+(p.cycle.round||1)+" completo!"), el("span",{},"Você cumpriu "+fmtGoal(Math.round(total))+" de estudo distribuído."),
-      el("button",{class:"btn primary",type:"button",onclick:()=>setPlan({cycle:{startedAt:Date.now(), round:(p.cycle.round||1)+1}})},"Começar o ciclo "+((p.cycle.round||1)+1))));
-    return;
-  }
-  const next = nextBlocks(p, alloc, 4).map(id => alloc.find(s=>s.id===id)).filter(Boolean);
-  const n0 = next[0];
-  info.append(el("span",{class:"label"},"Próximo no ciclo"),
-    el("div",{class:"next-subj",style:"--sc:"+subjColor(n0)}, el("span",{class:"sdot",style:"background:"+subjColor(n0)}), el("b",{}, n0.name), el("span",{class:"muted"}, "bloco de "+fmtGoal(p.blockMin))),
-    el("div",{class:"row"}, el("button",{class:"btn primary",type:"button",disabled:!!config.running||!!finishing,onclick:()=>studyNow(n0.id)}, svgEl("play"), config.running && config.running.subject ? "Estudando agora" : "Estudar agora")),
-    next.length > 1 ? el("span",{class:"note-sm"}, "Depois: "+next.slice(1).map(s=>s.name).join(" → ")) : null,
-    el("span",{class:"note-sm"}, "Feito: "+fmtGoal(Math.round(doneTotal))+" de "+fmtGoal(total)+" · iniciado em "+new Date(p.cycle.startedAt).toLocaleDateString("pt-BR")),
-    el("button",{class:"btn ghost sm",type:"button",onclick:()=>setPlan({cycle:{startedAt:Date.now(), round:(p.cycle.round||1)}})},"Recomeçar este ciclo do zero"));
-}
-function renderWeek(p, alloc){
-  const box = $("planWeek"); box.replaceChildren();
-  if (!alloc.length){ box.append(el("p",{class:"empty"},"A semana sugerida é montada a partir do ciclo e das horas de cada dia.")); return; }
-  // segunda-feira desta semana
-  const today = startOfDay(Date.now()), monday = new Date(today); monday.setDate(today.getDate() - ((today.getDay()+6)%7));
-  const seq = cycleSequence(alloc), per = Math.max(1, p.blockMin);
-  let ptr = 0; { const nb = nextBlocks(p, alloc, 1)[0]; if (nb) ptr = Math.max(0, seq.indexOf(nb)); }
-  const studied = {}; sessions.forEach(s => { const k = dayKey(s.start); studied[k] = (studied[k]||0) + (s.dur||0)/60; });
-  for (let i = 0; i < 7; i++){
-    const d = new Date(monday); d.setDate(monday.getDate()+i); const k = dayKey(d.getTime()), dow = d.getDay();
-    const isToday = k === dayKey(today.getTime()), past = d < today;
-    const col = el("div",{class:"wday"+(isToday?" today":"")+(past?" past":"")}, el("div",{class:"wh"}, el("b",{}, DOW[dow]), el("span",{class:"num"}, pad(d.getDate())+"/"+pad(d.getMonth()+1))));
-    const cap = Math.max(0, (p.days[dow]||0)*60 - (isToday ? (studied[k]||0) : 0));
-    if (past){
-      const m = Math.round(studied[k]||0);
-      col.append(el("div",{class:"wpast"}, m ? fmtGoal(m)+" estudados" : "—"));
-    } else if (!cap){
-      col.append(el("div",{class:"wfree"},"folga"));
-    } else {
-      let used = 0;
-      while (used + per <= cap + 1){
-        const s = alloc.find(x => x.id === seq[ptr % seq.length]); ptr++;
-        col.append(el("button",{class:"wblock",type:"button",style:"--sc:"+subjColor(s),title:s.name+" · "+fmtGoal(per)+(isToday?" · clique para estudar agora":""),disabled:!isToday||!!config.running,onclick:()=>studyNow(s.id)}, el("span",{}, s.name), el("small",{}, fmtGoal(per))));
-        used += per;
-      }
-      if (isToday && studied[k]) col.append(el("div",{class:"wpast"}, fmtGoal(Math.round(studied[k]))+" já feitos"));
-    }
-    box.append(col);
-  }
-}
-function renderProjection(p, alloc){
-  const box = $("planProjection"); box.replaceChildren();
-  const ex = config.exams.find(e => e.id === p.examId);
-  if (!ex || !ex.date){ box.append(el("p",{class:"empty"},"Escolha a prova alvo nos ajustes para ver quanto tempo cada matéria vai receber até lá.")); return; }
-  const days = Math.max(0, countdown(ex).days), weeks = days/7, total = weeklyHours(p)*weeks;
-  box.append(el("div",{class:"proj-head"}, el("b",{class:"num"}, Math.round(total)+" h"), el("span",{}, "de estudo até "+ex.name+" ("+days+" dias, "+weeks.toFixed(1).replace(".",",")+" semanas)")));
-  if (!alloc.length) return;
-  const sumMin = alloc.reduce((a,s)=>a+s.minutes,0);
-  const max = Math.max(...alloc.map(s=>s.minutes));
-  const list = el("div",{class:"bars"});
-  alloc.slice().sort((a,b)=>b.minutes-a.minutes).forEach(s => {
-    const h = total * s.minutes / sumMin;
-    list.append(el("div",{class:"bar"},
-      el("div",{class:"name"}, el("span",{style:"background:"+subjColor(s)+";width:10px;height:10px;border-radius:50%;flex:none;display:inline-block"}), el("span",{}, s.name)),
-      el("div",{class:"track"}, el("div",{class:"fill",style:"width:"+(s.minutes/max*100).toFixed(1)+"%;background:"+subjColor(s)})),
-      el("div",{class:"val"}, "~"+Math.round(h)+" h")));
-  });
-  box.append(list, el("p",{class:"note-sm",style:"margin:0"},"Cada ciclo leva cerca de uma semana. Ajuste peso e domínio conforme você avança: o tempo se redistribui sozinho."));
-}
-
 /* ---------- ciclo ---------- */
 function renderAll(){
   renderTimer(); renderToday(); renderHello(); renderTasksAll();
   if (!$("view-stats").hidden) renderStats(); else fillCatSelect();
   if (!$("view-exams").hidden) renderExams();
-  if (!$("view-plan").hidden) renderPlan();
 }
 setInterval(() => {
   if (config.running && !finishing){ checkPhase(); updateTimeDisplay(); }

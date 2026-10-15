@@ -19,9 +19,6 @@ console.log("finish task box visible:", await p.isVisible("#fTaskWrap"), "note:"
 await p.fill("#fQty","20"); await p.fill("#fOk","15"); await p.click("#fSave"); await p.waitForTimeout(150);
 const docs = await p.evaluate(()=>[...window.__docs.entries()]);
 console.log("docs:", docs.map(([k,v])=>k+(k.includes("tasks")?" done="+v.done:"")).join(", "));
-// tasks tab
-await p.click("#tab-tasks"); await p.fill("#tText","Ler informativo 812 STJ"); await p.click("[data-due='1']"); await p.selectOption("#tCat","jurisprudencia"); await p.click("#taskForm button[type=submit]"); await p.waitForTimeout(100);
-console.log("tasks view:", (await p.textContent("#taskList")).replace(/\s+/g," ").slice(0,200), "| done:", (await p.textContent("#taskDone")).replace(/\s+/g," ").slice(0,120));
 // stats + hours
 await p.click("#tab-stats"); await p.waitForTimeout(100);
 console.log("hours note:", await p.textContent("#hoursNote"), "| bars:", await p.locator("#hoursChart rect").count(), "| acc:", await p.textContent("#accEmail"));
