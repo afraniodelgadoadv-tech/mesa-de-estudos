@@ -1,0 +1,38 @@
+import { chromium } from "playwright";
+import http from "node:http"; import { readFileSync } from "node:fs";
+const srv = http.createServer((q,r)=>{ const f = "test/out" + q.url.split("?")[0]; try { const b = readFileSync(f); r.writeHead(200,{"content-type": f.endsWith(".js")?"text/javascript":"text/html"}); r.end(b);} catch(e){ r.writeHead(404); r.end(); } }).listen(8773);
+const browser = await chromium.launch({executablePath:"/opt/pw-browsers/chromium"}); const errs=[];
+const p = await browser.newPage({viewport:{width:1280,height:1000}}); p.on("pageerror", e=>errs.push(e.message));
+await p.clock.install({time: new Date("2026-10-15T08:00:00-03:00")});
+await p.goto("http://localhost:8773/site.html"); await p.clock.runFor(100);
+await p.evaluate(()=>{ window.__docs.set("users/u1",{categories:[{id:"questoes",name:"Questões",color:0},{id:"jurisprudencia",name:"Jurisprudência",color:1}],exams:[{id:"dpe",name:"DPE-PB — Analista Jurídico (FCC)",date:"2027-02-28",time:""}],dailyGoal:240,running:null}); window.__login(); });
+await p.clock.runFor(300);
+await p.click("#tab-plan"); await p.clock.runFor(200);
+console.log("empty:", (await p.textContent("#planSubjects")).slice(0,80));
+await p.click("#planSubjects button:has-text('DPE-PB')"); await p.clock.runFor(300);
+console.log("subjects:", await p.locator(".subj").count(), "| weekly:", await p.textContent("#planWeekly"));
+console.log("cycle info:", (await p.textContent("#cycleInfo")).replace(/\s+/g," ").slice(0,200));
+console.log("projection:", (await p.textContent("#planProjection")).replace(/\s+/g," ").slice(0,160));
+// raise weight / lower level of Civil
+await p.click(".subj:has(input[value='Direito Civil']) .dots >> nth=1 >> .d >> nth=0"); await p.clock.runFor(200);
+console.log("civil hours after level=1:", await p.textContent(".subj:has(input[value='Direito Civil']) .shours"));
+await p.screenshot({path:"test/out/plan.png", fullPage:true});
+// study next
+const nextName = await p.textContent(".next-subj b");
+await p.click("#cycleInfo button:has-text('Estudar agora')"); await p.clock.runFor(500);
+console.log("timer status:", await p.textContent("#status"));
+await p.clock.runFor(62*60000);
+await p.click("#controls button:has-text('Encerrar')"); await p.clock.runFor(100);
+await p.click("#fSave"); await p.clock.runFor(400);
+console.log("session:", await p.evaluate(()=>[...window.__docs.entries()].filter(([k])=>k.includes("sessions")).map(([k,v])=>v.subjectName+" "+Math.round(v.dur/60)+"min")));
+console.log("reviews:", await p.evaluate(()=>[...window.__docs.entries()].filter(([k])=>k.includes("tasks")).map(([k,v])=>v.text+" @"+v.due)));
+await p.click("#tab-plan"); await p.clock.runFor(300);
+console.log("next after:", (await p.textContent("#cycleInfo")).replace(/\s+/g," ").slice(0,160), "| studied first:", nextName);
+await p.screenshot({path:"test/out/plan2.png"});
+const q = await browser.newPage({viewport:{width:400,height:900}}); q.on("pageerror", e=>errs.push("panel: "+e.message));
+await q.goto("http://localhost:8773/panel.html"); await q.waitForTimeout(100);
+await q.evaluate(()=>{ window.__docs.set("users/u1",{categories:[{id:"questoes",name:"Questões",color:0}],exams:[],dailyGoal:240,running:null,plan:{days:[0,3,3,3,3,3,2],blockMin:60,subjects:[{id:"a",name:"Direito Civil",weight:2,level:2,color:0},{id:"b",name:"Português",weight:1,level:4,color:1}],cycle:{startedAt:0,round:1}}}); window.__login(); });
+await q.waitForTimeout(300); await q.click("#tab-plan"); await q.waitForTimeout(300);
+console.log("panel scrollWidth:", await q.evaluate(()=>document.documentElement.scrollWidth));
+await q.screenshot({path:"test/out/plan-panel.png", fullPage:true});
+console.log("ERRORS:", errs.length?errs:"none"); await browser.close(); srv.close();

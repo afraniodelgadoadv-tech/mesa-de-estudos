@@ -50,7 +50,7 @@ const store = {
     this.unsubs.push(onSnapshot(this.base, snap => {
       if (snap.exists()){
         const d = clean(snap.data());
-        config = {categories: (d.categories&&d.categories.length)? d.categories : DEFAULT_CATS.slice(), exams: d.exams||[], running: d.running||null, dailyGoal: d.dailyGoal||240, timerPrefs: d.timerPrefs||null, lastCat: d.lastCat||null};
+        config = {categories: (d.categories&&d.categories.length)? d.categories : DEFAULT_CATS.slice(), exams: d.exams||[], running: d.running||null, dailyGoal: d.dailyGoal||240, timerPrefs: d.timerPrefs||null, lastCat: d.lastCat||null, plan: d.plan||null};
       } else if (first && !snap.metadata.fromCache){ this.saveConfig(); }
       first = false;
       restoreRunning();
@@ -79,7 +79,7 @@ const store = {
   write(p){ p.catch(err => { console.error(err); setSync("error", err); }); return Promise.resolve(); },
   saveConfig(){
     if (!this.base) return Promise.resolve();
-    return this.write(setDoc(this.base, clean({categories: config.categories, exams: config.exams, running: config.running||null, dailyGoal: config.dailyGoal||240, timerPrefs: config.timerPrefs||null, lastCat: config.lastCat||null})));
+    return this.write(setDoc(this.base, clean({categories: config.categories, exams: config.exams, running: config.running||null, dailyGoal: config.dailyGoal||240, timerPrefs: config.timerPrefs||null, lastCat: config.lastCat||null, plan: config.plan||null})));
   },
   addSession(s){ const {id, ...body} = s; return this.write(setDoc(doc(this.base, "sessions", id), clean(body))); },
   delSession(id){ return this.write(deleteDoc(doc(this.base, "sessions", id))); },
@@ -110,10 +110,10 @@ function setSync(m, err){
 document.querySelectorAll("nav.tabs button").forEach(b => b.addEventListener("click", () => showTab(b.dataset.tab)));
 function showTab(t){
   document.querySelectorAll("nav.tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab===t ? "true":"false"));
-  ["timer","tasks","stats","exams","notes"].forEach(v => $("view-"+v).hidden = v!==t);
+  ["timer","plan","tasks","stats","exams","notes"].forEach(v => $("view-"+v).hidden = v!==t);
   document.body.classList.toggle("on-notes", t==="notes");
   if (env.mode === "site" || env.mode === "panel"){ try { localStorage.setItem("mesa.tab", t); } catch(e){} }
-  if (t==="stats") renderStats(); if (t==="exams") renderExams(); if (t==="notes") renderNotes(); if (t==="tasks") renderTasks();
+  if (t==="stats") renderStats(); if (t==="exams") renderExams(); if (t==="notes") renderNotes(); if (t==="tasks") renderTasks(); if (t==="plan") renderPlan();
 }
 try { const t = localStorage.getItem("mesa.tab"); if (t) showTab(t); } catch(e){}
 
@@ -153,6 +153,7 @@ function startTimer(task){
   const p = prefs(), now = Date.now();
   const r = {cat: selCat, mode: p.mode, start: now, acc: 0, first: now};
   if (task && task.id){ r.task = task.id; r.taskText = task.text; }
+  if (task && task.subject){ r.subject = task.subject; r.subjectName = task.text; r.taskText = task.text; }
   if (p.mode==="countdown") r.target = p.cdMin*60;
   if (p.mode==="exam"){ r.target = p.examMin*60; r.questions = p.examQ; }
   if (p.mode==="pomodoro"){
@@ -171,7 +172,7 @@ function stopTimer(){
   const r = config.running; if (!r) return;
   const dur = elapsed();
   if (r.start){ r.acc = dur; r.start = null; store.saveConfig(); }
-  finishing = {cat: r.cat, first: r.first || (Date.now()-dur*1000), dur, task: r.task||null, mode: r.mode, questions: r.questions, cycles: r.cycles, auto: !!r.pendingFinish};
+  finishing = {cat: r.cat, first: r.first || (Date.now()-dur*1000), dur, task: r.task||null, mode: r.mode, questions: r.questions, cycles: r.cycles, auto: !!r.pendingFinish, subject: r.subject||null, subjectName: r.subjectName||null};
   $("fQty").value = ""; $("fOk").value = "";
   $("fNote").value = r.taskText || (r.mode==="exam" ? "Simulado: "+(r.questions||"")+" questões em "+fmtGoal(Math.round((r.target||0)/60)) : r.mode==="pomodoro" && r.cycles ? "Pomodoro "+r.cfg.label+": "+r.cycles+(r.cycles===1?" ciclo":" ciclos") : "");
   $("fTaskWrap").hidden = !(r.task && tasks.some(t=>t.id===r.task && !t.done)); $("fTaskDone").checked = true;
@@ -183,11 +184,13 @@ async function saveFinish(){
   const c = catById(f.cat);
   const s = {id: uid(), cat: f.cat, catName: c.name, start: f.first, end: Date.now(), dur: Math.round(f.dur)};
   if (f.mode && f.mode!=="free") s.mode = f.mode;
+  if (f.subject){ s.subject = f.subject; s.subjectName = f.subjectName; }
   if (!isNaN(qty)) s.qty = qty; if (!isNaN(ok)) s.ok = ok;
   const note = $("fNote").value.trim(); if (note) s.note = note;
   if (f.task && $("fTaskDone").checked){ const t = tasks.find(x=>x.id===f.task); if (t && !t.done) toggleTask(t, true); }
   finishing = null; config.running = null;
   await store.saveConfig(); await store.addSession(s);
+  if (f.subject && s.dur >= 300) addReviews(f.subject, f.subjectName, note && note !== f.subjectName ? note : "");
   renderAll();
   if (env.mode === "float" && f.auto) setTimeout(() => window.close(), 400);
 }
@@ -1262,11 +1265,223 @@ if (env.pill && env.mode !== "float"){
   if (env.pill.onChange) env.pill.onChange(on => pb.setAttribute("aria-pressed", String(!!on)));
 }
 
+/* ---------- cronograma: ciclo de estudos, semana sugerida, revisões e projeção até a prova ---------- */
+// plan = {days:[h dom..sáb], blockMin, examId, reviews, subjects:[{id,name,weight 1-3,level 1-5,color}], cycle:{startedAt, round}}
+const WEEK_ORDER = [1,2,3,4,5,6,0]; // seg → dom
+const DOW_FULL = ["Domingo","Segunda","Terça","Quarta","Quinta","Sexta","Sábado"];
+const SUBJ_COLORS = 12;
+const PRESET_DPEPB = [
+  ["Língua Portuguesa",1,3],["Legislação da Defensoria",1,3],["Conhecimentos Jurídicos e Institucionais",1,3],
+  ["Direito Constitucional",2,3],["Direito Administrativo",2,3],["Direito Civil",2,3],["Direito Processual Civil",2,3],
+  ["Direito Penal",2,3],["Direito Processual Penal",2,3],["Direito do Consumidor",2,3],["Direitos Humanos",2,3],
+];
+function plan(){
+  const p = config.plan || {};
+  return { days: Array.isArray(p.days) && p.days.length===7 ? p.days.slice() : [0,3,3,3,3,3,2], blockMin: p.blockMin || 60, examId: p.examId || "",
+           reviews: p.reviews !== false, subjects: (p.subjects||[]).map(s=>({...s})), cycle: p.cycle ? {...p.cycle} : {startedAt: Date.now(), round: 1} };
+}
+function setPlan(patch){ config.plan = {...plan(), ...patch}; store.saveConfig(); renderPlan(); }
+const subjColor = s => "var(--sc"+((s.color||0)%SUBJ_COLORS)+")";
+const weeklyHours = p => p.days.reduce((a,h)=>a+(+h||0),0);
+// quantos blocos cada matéria recebe no ciclo: peso do edital × quanto falta dominar
+function allocate(p){
+  const subs = p.subjects; if (!subs.length) return [];
+  const total = Math.max(subs.length, Math.round(weeklyHours(p)*60 / p.blockMin));
+  const score = subs.map(s => (s.weight||1) * (6 - (s.level||3)));
+  const sum = score.reduce((a,b)=>a+b,0) || 1;
+  const raw = score.map(x => total * x / sum);
+  const blocks = raw.map(x => Math.max(1, Math.floor(x)));
+  let left = total - blocks.reduce((a,b)=>a+b,0);
+  const order = raw.map((x,i)=>[x - blocks[i], i]).sort((a,b)=>b[0]-a[0]);
+  for (let k = 0; left > 0 && k < order.length*3; k++){ blocks[order[k % order.length][1]]++; left--; }
+  return subs.map((s,i)=>({...s, blocks: blocks[i], minutes: blocks[i]*p.blockMin}));
+}
+// ordem do ciclo intercalando matérias (nunca a mesma duas vezes seguidas, se der)
+function cycleSequence(alloc){
+  const used = alloc.map(()=>0), seq = []; let last = -1;
+  const total = alloc.reduce((a,s)=>a+s.blocks,0);
+  for (let n = 0; n < total; n++){
+    let best = -1, bestScore = -1;
+    alloc.forEach((s,i) => { if (used[i] >= s.blocks) return; const sc = (s.blocks - used[i]) / s.blocks + s.blocks*0.001 + (i===last ? -1 : 0); if (sc > bestScore){ bestScore = sc; best = i; } });
+    used[best]++; seq.push(alloc[best].id); last = best;
+  }
+  return seq;
+}
+function cycleDone(p){ // minutos estudados por matéria desde o início do ciclo
+  const m = {}; sessions.forEach(s => { if (s.subject && s.start >= (p.cycle.startedAt||0)) m[s.subject] = (m[s.subject]||0) + (s.dur||0)/60; });
+  const r = config.running; if (r && r.subject && !finishing) m[r.subject] = (m[r.subject]||0) + elapsed()/60;
+  return m;
+}
+function nextBlocks(p, alloc, count){ // próximos blocos ainda não cumpridos, na ordem do ciclo
+  const seq = cycleSequence(alloc), done = cycleDone(p), budget = {...done}, out = [];
+  for (const id of seq){ if ((budget[id]||0) >= p.blockMin - 1){ budget[id] -= p.blockMin; continue; } out.push(id); if (out.length >= count) break; }
+  return out;
+}
+function studyNow(subjectId){
+  const p = plan(), s = p.subjects.find(x=>x.id===subjectId); if (!s || config.running || finishing) return;
+  showTab("timer");
+  startTimer({ subject: s.id, text: s.name });
+}
+function addReviews(subjectId, subjectName, note){
+  if (!plan().reviews) return;
+  [1,7,30].forEach(d => {
+    const due = new Date(); due.setDate(due.getDate()+d); const key = dayKey(due.getTime());
+    if (tasks.some(t => !t.done && t.review === subjectId && t.due === key)) return;
+    addTask("Revisar "+subjectName+(note ? " — "+note.slice(0,60) : "")+" ("+(d===1?"24h":d+" dias")+")", null, key);
+    const t = tasks[tasks.length-1]; if (t){ t.review = subjectId; store.saveTask(t); }
+  });
+}
+
+/* tela */
+let planEditing = false;
+function renderPlan(){
+  const v = $("view-plan"); if (!v || v.hidden) return;
+  const p = plan(), alloc = allocate(p), wh = weeklyHours(p);
+  const done = cycleDone(p);
+  // ajustes (não redesenha enquanto você digita)
+  const box = $("planSettings");
+  if (!box.contains(document.activeElement)){
+    box.replaceChildren(
+      el("div",{class:"stack",style:"gap:6px"}, el("span",{class:"label"},"Horas disponíveis por dia"),
+        el("div",{class:"days-in"}, ...WEEK_ORDER.map(d => el("label",{class:"day-in"}, el("span",{}, DOW[d]),
+          el("input",{type:"number",min:"0",max:"16",step:"0.5",value:String(p.days[d]||0),"aria-label":"Horas na "+DOW_FULL[d],onchange:e=>{ const days = plan().days; days[d] = Math.max(0, Math.min(16, parseFloat(e.target.value)||0)); setPlan({days}); }}))))),
+      el("div",{class:"row"},
+        el("label",{class:"field",style:"flex:1 1 130px"}, el("span",{},"Tamanho do bloco"),
+          el("select",{id:"planBlock",onchange:e=>setPlan({blockMin:+e.target.value})}, ...[30,45,50,60,90,120].map(m=>el("option",{value:String(m),selected:p.blockMin===m}, fmtGoal(m))))),
+        el("label",{class:"field",style:"flex:2 1 180px"}, el("span",{},"Prova alvo"),
+          el("select",{id:"planExam",onchange:e=>setPlan({examId:e.target.value})}, el("option",{value:""},"Nenhuma"), ...upcomingExams().map(e=>el("option",{value:e.id,selected:p.examId===e.id}, e.name))))),
+      el("label",{class:"check-line"}, el("input",{type:"checkbox",checked:p.reviews,onchange:e=>setPlan({reviews:e.target.checked})}), "Criar revisões automáticas (24h, 7 e 30 dias) ao estudar uma matéria do ciclo"));
+  }
+  $("planWeekly").textContent = wh ? fmtGoal(Math.round(wh*60))+" por semana" : "defina suas horas";
+  renderPlanSubjects(p, alloc, done);
+  renderCycle(p, alloc, done);
+  renderWeek(p, alloc);
+  renderProjection(p, alloc);
+}
+function renderPlanSubjects(p, alloc, done){
+  const list = $("planSubjects");
+  if (list.contains(document.activeElement) && document.activeElement.tagName === "INPUT") return;
+  list.replaceChildren();
+  if (!alloc.length){
+    list.append(el("div",{class:"empty-plan"}, el("p",{class:"empty"},"Cadastre as matérias do seu edital. O peso indica o quanto ela vale na prova; o domínio, o quanto você já sabe. O ciclo dá mais tempo a quem pesa mais e você domina menos."),
+      el("button",{class:"btn sm",type:"button",onclick:()=>loadPreset()},"Usar as matérias da DPE-PB (Analista Jurídico)")));
+  }
+  alloc.forEach(s => {
+    const pct = Math.min(100, (done[s.id]||0) / s.minutes * 100);
+    const dots = (n, val, on, label) => el("span",{class:"dots",role:"group","aria-label":label}, ...Array.from({length:n},(_,i)=>el("button",{type:"button",class:"d"+(i<val?" on":""),title:label+": "+(i+1),"aria-label":label+" "+(i+1),onclick:()=>on(i+1)})));
+    const upd = ch => setPlan({subjects: plan().subjects.map(x => x.id===s.id ? {...x, ...ch} : x)});
+    const del = el("span",{class:"confirm"}, el("button",{class:"x",type:"button","aria-label":"Excluir "+s.name,title:"Excluir matéria"},"×"));
+    inlineConfirm(del, "Excluir?", () => setPlan({subjects: plan().subjects.filter(x=>x.id!==s.id)}));
+    list.append(el("div",{class:"subj"},
+      el("span",{class:"sdot",style:"background:"+subjColor(s)}),
+      el("input",{type:"text",class:"sname",value:s.name,maxlength:"60","aria-label":"Nome da matéria",onchange:e=>{ const n = e.target.value.trim(); if (n) upd({name:n}); }}),
+      el("span",{class:"smeta"}, el("span",{class:"slabel"},"peso"), dots(3, s.weight||1, w=>upd({weight:w}), "Peso"), el("span",{class:"slabel"},"domínio"), dots(5, s.level||3, l=>upd({level:l}), "Domínio")),
+      el("span",{class:"shours num",title:"Tempo no ciclo"}, fmtGoal(s.minutes)),
+      el("span",{class:"sbar",title:Math.round(pct)+"% do ciclo"}, el("i",{style:"width:"+pct.toFixed(0)+"%;background:"+subjColor(s)})),
+      el("button",{class:"ibtn splay",type:"button",title:"Estudar agora","aria-label":"Estudar "+s.name+" agora",disabled:!!config.running||!!finishing,onclick:()=>studyNow(s.id)}, svgEl("play")),
+      del));
+  });
+}
+function loadPreset(){
+  const subs = PRESET_DPEPB.map(([name,weight,level],i)=>({id:uid()+i, name, weight, level, color:i}));
+  const ex = upcomingExams().find(e => /dpe|defensoria/i.test(e.name));
+  setPlan({subjects: subs, examId: ex ? ex.id : plan().examId, cycle:{startedAt: Date.now(), round: 1}});
+}
+$("planAdd").addEventListener("submit", e => {
+  e.preventDefault(); const n = $("planNew").value.trim(); if (!n) return;
+  const p = plan(); const used = new Set(p.subjects.map(s=>s.color)); let color = 0; while (used.has(color) && color < SUBJ_COLORS-1) color++;
+  p.subjects.push({id:uid(), name:n, weight:2, level:3, color}); $("planNew").value = "";
+  setPlan({subjects: p.subjects}); $("planNew").focus();
+});
+function renderCycle(p, alloc, done){
+  const svg = $("cycleRing"), info = $("cycleInfo");
+  svg.replaceChildren(); info.replaceChildren();
+  const total = alloc.reduce((a,s)=>a+s.minutes,0);
+  const ns = "http://www.w3.org/2000/svg", C = 2*Math.PI*86;
+  const add = (tag, a) => { const e = document.createElementNS(ns, tag); for (const k in a) e.setAttribute(k, a[k]); svg.append(e); return e; };
+  add("circle",{cx:100,cy:100,r:86,fill:"none",stroke:"var(--sunk)","stroke-width":22});
+  let off = 0, doneTotal = 0;
+  alloc.forEach(s => {
+    const frac = s.minutes/total, len = frac*C, gap = Math.min(2, len*0.2);
+    const got = Math.min(s.minutes, done[s.id]||0); doneTotal += got;
+    add("circle",{cx:100,cy:100,r:86,fill:"none",stroke:subjColor(s),"stroke-opacity":".25","stroke-width":22,"stroke-dasharray":`${Math.max(0,len-gap)} ${C}`,"stroke-dashoffset":String(-off),transform:"rotate(-90 100 100)"}).append(Object.assign(document.createElementNS(ns,"title"),{textContent:s.name+": "+fmtGoal(s.minutes)}));
+    const glen = (got/s.minutes)*Math.max(0,len-gap);
+    if (glen > 0) add("circle",{cx:100,cy:100,r:86,fill:"none",stroke:subjColor(s),"stroke-width":22,"stroke-dasharray":`${glen} ${C}`,"stroke-dashoffset":String(-off),transform:"rotate(-90 100 100)"});
+    off += len;
+  });
+  const pct = total ? Math.round(doneTotal/total*100) : 0;
+  $("cycleCenter").replaceChildren(el("b",{}, pct+"%"), el("span",{}, "ciclo "+(p.cycle.round||1)));
+  if (!alloc.length){ info.append(el("p",{class:"empty"},"Seu ciclo aparece aqui quando você cadastrar as matérias.")); return; }
+  if (pct >= 100){
+    info.append(el("div",{class:"cycle-done"}, el("b",{},"Ciclo "+(p.cycle.round||1)+" completo!"), el("span",{},"Você cumpriu "+fmtGoal(Math.round(total))+" de estudo distribuído."),
+      el("button",{class:"btn primary",type:"button",onclick:()=>setPlan({cycle:{startedAt:Date.now(), round:(p.cycle.round||1)+1}})},"Começar o ciclo "+((p.cycle.round||1)+1))));
+    return;
+  }
+  const next = nextBlocks(p, alloc, 4).map(id => alloc.find(s=>s.id===id)).filter(Boolean);
+  const n0 = next[0];
+  info.append(el("span",{class:"label"},"Próximo no ciclo"),
+    el("div",{class:"next-subj",style:"--sc:"+subjColor(n0)}, el("span",{class:"sdot",style:"background:"+subjColor(n0)}), el("b",{}, n0.name), el("span",{class:"muted"}, "bloco de "+fmtGoal(p.blockMin))),
+    el("div",{class:"row"}, el("button",{class:"btn primary",type:"button",disabled:!!config.running||!!finishing,onclick:()=>studyNow(n0.id)}, svgEl("play"), config.running && config.running.subject ? "Estudando agora" : "Estudar agora")),
+    next.length > 1 ? el("span",{class:"note-sm"}, "Depois: "+next.slice(1).map(s=>s.name).join(" → ")) : null,
+    el("span",{class:"note-sm"}, "Feito: "+fmtGoal(Math.round(doneTotal))+" de "+fmtGoal(total)+" · iniciado em "+new Date(p.cycle.startedAt).toLocaleDateString("pt-BR")),
+    el("button",{class:"btn ghost sm",type:"button",onclick:()=>setPlan({cycle:{startedAt:Date.now(), round:(p.cycle.round||1)}})},"Recomeçar este ciclo do zero"));
+}
+function renderWeek(p, alloc){
+  const box = $("planWeek"); box.replaceChildren();
+  if (!alloc.length){ box.append(el("p",{class:"empty"},"A semana sugerida é montada a partir do ciclo e das horas de cada dia.")); return; }
+  // segunda-feira desta semana
+  const today = startOfDay(Date.now()), monday = new Date(today); monday.setDate(today.getDate() - ((today.getDay()+6)%7));
+  const seq = cycleSequence(alloc), per = Math.max(1, p.blockMin);
+  let ptr = 0; { const nb = nextBlocks(p, alloc, 1)[0]; if (nb) ptr = Math.max(0, seq.indexOf(nb)); }
+  const studied = {}; sessions.forEach(s => { const k = dayKey(s.start); studied[k] = (studied[k]||0) + (s.dur||0)/60; });
+  for (let i = 0; i < 7; i++){
+    const d = new Date(monday); d.setDate(monday.getDate()+i); const k = dayKey(d.getTime()), dow = d.getDay();
+    const isToday = k === dayKey(today.getTime()), past = d < today;
+    const col = el("div",{class:"wday"+(isToday?" today":"")+(past?" past":"")}, el("div",{class:"wh"}, el("b",{}, DOW[dow]), el("span",{class:"num"}, pad(d.getDate())+"/"+pad(d.getMonth()+1))));
+    const cap = Math.max(0, (p.days[dow]||0)*60 - (isToday ? (studied[k]||0) : 0));
+    if (past){
+      const m = Math.round(studied[k]||0);
+      col.append(el("div",{class:"wpast"}, m ? fmtGoal(m)+" estudados" : "—"));
+    } else if (!cap){
+      col.append(el("div",{class:"wfree"},"folga"));
+    } else {
+      let used = 0;
+      while (used + per <= cap + 1){
+        const s = alloc.find(x => x.id === seq[ptr % seq.length]); ptr++;
+        col.append(el("button",{class:"wblock",type:"button",style:"--sc:"+subjColor(s),title:s.name+" · "+fmtGoal(per)+(isToday?" · clique para estudar agora":""),disabled:!isToday||!!config.running,onclick:()=>studyNow(s.id)}, el("span",{}, s.name), el("small",{}, fmtGoal(per))));
+        used += per;
+      }
+      if (isToday && studied[k]) col.append(el("div",{class:"wpast"}, fmtGoal(Math.round(studied[k]))+" já feitos"));
+    }
+    box.append(col);
+  }
+}
+function renderProjection(p, alloc){
+  const box = $("planProjection"); box.replaceChildren();
+  const ex = config.exams.find(e => e.id === p.examId);
+  if (!ex || !ex.date){ box.append(el("p",{class:"empty"},"Escolha a prova alvo nos ajustes para ver quanto tempo cada matéria vai receber até lá.")); return; }
+  const days = Math.max(0, countdown(ex).days), weeks = days/7, total = weeklyHours(p)*weeks;
+  box.append(el("div",{class:"proj-head"}, el("b",{class:"num"}, Math.round(total)+" h"), el("span",{}, "de estudo até "+ex.name+" ("+days+" dias, "+weeks.toFixed(1).replace(".",",")+" semanas)")));
+  if (!alloc.length) return;
+  const sumMin = alloc.reduce((a,s)=>a+s.minutes,0);
+  const max = Math.max(...alloc.map(s=>s.minutes));
+  const list = el("div",{class:"bars"});
+  alloc.slice().sort((a,b)=>b.minutes-a.minutes).forEach(s => {
+    const h = total * s.minutes / sumMin;
+    list.append(el("div",{class:"bar"},
+      el("div",{class:"name"}, el("span",{style:"background:"+subjColor(s)+";width:10px;height:10px;border-radius:50%;flex:none;display:inline-block"}), el("span",{}, s.name)),
+      el("div",{class:"track"}, el("div",{class:"fill",style:"width:"+(s.minutes/max*100).toFixed(1)+"%;background:"+subjColor(s)})),
+      el("div",{class:"val"}, "~"+Math.round(h)+" h")));
+  });
+  box.append(list, el("p",{class:"note-sm",style:"margin:0"},"Cada ciclo leva cerca de uma semana. Ajuste peso e domínio conforme você avança: o tempo se redistribui sozinho."));
+}
+
 /* ---------- ciclo ---------- */
 function renderAll(){
   renderTimer(); renderToday(); renderHello(); renderTasksAll();
   if (!$("view-stats").hidden) renderStats(); else fillCatSelect();
   if (!$("view-exams").hidden) renderExams();
+  if (!$("view-plan").hidden) renderPlan();
 }
 setInterval(() => {
   if (config.running && !finishing){ checkPhase(); updateTimeDisplay(); }
